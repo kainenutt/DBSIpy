@@ -26,7 +26,7 @@ def test_resolve_config_path_filename_only() -> None:
 
 
 def test_resolve_basis_path_from_suffix() -> None:
-    raw = "BasisSets/Human_Brain_InVivo_Modern/angle_basis.csv"
+    raw = "BasisSets/Human_Brain_InVivo/angle_basis.csv"
     resolved = resolve_basis_path(raw)
     assert Path(resolved).exists()
-    assert resolved.replace("\\", "/").endswith("BasisSets/Human_Brain_InVivo_Modern/angle_basis.csv")
+    assert resolved.replace("\\", "/").endswith("BasisSets/Human_Brain_InVivo/angle_basis.csv")

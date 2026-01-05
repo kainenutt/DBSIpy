@@ -46,12 +46,24 @@ def resolve_config_path(raw: str) -> str:
     # Legacy: DBSIpy_Configs/Configuration_*.ini
     if "DBSIpy_Configs/" in s:
         suffix = s.split("DBSIpy_Configs/", 1)[1]
+        # New layout: configs are grouped under DBSI_Configs/
+        candidate = get_configs_dir() / "DBSI_Configs" / suffix
+        if candidate.exists():
+            return str(candidate)
+
+        # Older layout fallback: flat under configs/
         candidate = get_configs_dir() / suffix
         if candidate.exists():
             return str(candidate)
 
     # If user passed just a filename, try within shipped configs.
-    candidate = get_configs_dir() / Path(raw).name
+    name = Path(raw).name
+
+    candidate = get_configs_dir() / "DBSI_Configs" / name
+    if candidate.exists():
+        return str(candidate)
+
+    candidate = get_configs_dir() / name
     if candidate.exists():
         return str(candidate)
 
@@ -92,6 +104,12 @@ def resolve_basis_path(raw: str, *, cfg_source: Optional[str] = None) -> str:
     # Re-root anything containing "BasisSets/" under the packaged configs.
     if "BasisSets/" in s:
         suffix = s.split("BasisSets/", 1)[1]
+        # Current layout: configs/DBSI_Configs/BasisSets/...
+        candidate = get_configs_dir() / "DBSI_Configs" / "BasisSets" / suffix
+        if candidate.exists():
+            return str(candidate)
+
+        # Legacy layout: configs/BasisSets/...
         candidate = get_configs_dir() / "BasisSets" / suffix
         if candidate.exists():
             return str(candidate)

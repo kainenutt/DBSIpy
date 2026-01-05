@@ -49,6 +49,22 @@ For development (linters/tests tooling), also install:
 
      python -m pip install -r requirements-dev.txt
 
+Testing
+~~~~~~~
+
+The default test suite is *mechanistic/operational* and is safe to run frequently:
+
+.. code-block:: bash
+
+     python -m pytest
+
+DBSIpy also contains opt-in *physical accuracy* tests using small simulated phantoms.
+These are skipped by default and only run when explicitly requested:
+
+.. code-block:: bash
+
+     python -m pytest -m accuracy
+
 Running DBSIpy
 ~~~~~~~~~~~~~~
 
@@ -71,8 +87,7 @@ To run DBSIpy using a pre-existing configuration file:
 
 GUI (interactive) mode
 ~~~~~~~~~~~~~~~~~~~~~~
-
-If you omit ``--cfg_path``, DBSIpy launches a GUI flow (file dialogs) to select inputs and a base configuration template. This requires Tkinter support in your Python installation.
+If you omit the ``--cfg_path`` argument, DBSIpy will attempt to launch an interactive GUI flow (using Tkinter) to guide you through configuration and execution.
 
 .. code-block:: bash
 
@@ -81,9 +96,13 @@ If you omit ``--cfg_path``, DBSIpy launches a GUI flow (file dialogs) to select 
 Configuration templates
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-This repository ships example configuration files under ``dbsipy/configs/*.ini``. Basis-set CSV paths referenced by those configs are also shipped under ``dbsipy/configs/BasisSets/`` and are resolved at runtime.
+This repository ships example configuration files under ``dbsipy/configs/``:
 
-If you want a minimal starting point, see ``dbsipy/configs/Template_All_Engines_Minimal.ini``.
+- ``dbsipy/configs/Template_All_Engines_Minimal.ini`` (minimal starting point)
+- ``dbsipy/configs/DBSI_Configs/*.ini`` (DBSI/DBSI-IA engine configs)
+
+Basis-set CSVs referenced by DBSI/DBSI-IA configs are shipped under
+``dbsipy/configs/DBSI_Configs/BasisSets/`` and are resolved at runtime.
 
 Benchmark mode
 ~~~~~~~~~~~~~~

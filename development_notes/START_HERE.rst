@@ -15,7 +15,10 @@ Quickstart (Windows)
 
 2) Run tests
 
-- Run the test suite: ``python -m pytest``
+- Default tests (mechanistic/operational): ``python -m pytest``
+- Opt-in physical accuracy tests (simulated phantoms): ``python -m pytest -m accuracy``
+
+Note: the repo is configured to *skip* ``accuracy`` tests by default (so pytest may report them as "deselected").
 
 If you see odd import issues on Windows, prefer running tests via ``python -m pytest`` (not bare ``pytest``) to ensure you're using the same interpreter that has DBSIpy installed.
 

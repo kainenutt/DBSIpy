@@ -56,7 +56,10 @@ def fit_results_to_parameter_maps_dbsi_ia(fit_results: List[Dict[str, torch.Floa
         except Exception:
             cfg_max_fibers = max_num_fibers
 
-        n_fibers = max(1, min(max_num_fibers, cfg_max_fibers))
+        # A valid outcome is a "0-fiber" model (purely isotropic). In that case,
+        # the fit result will not contain any fiber_* keys, so reconstruction
+        # must not assume at least one fiber.
+        n_fibers = max(0, min(max_num_fibers, cfg_max_fibers))
 
         current_device = _infer_device_from_fit_result(fit_result, fallback_device=DBSI_cls.configuration.DEVICE)
         inds_torch = torch.tensor(inds, dtype=int, device=current_device)
@@ -99,8 +102,16 @@ def fit_results_to_parameter_maps_dbsi_ia(fit_results: List[Dict[str, torch.Floa
 
         for compartment in DBSI_cls.configuration.DEFAULT_FIBER_CUTS.keys():
             for fiber_idx in range(1, n_fibers + 1):
-                fiber_c_fractions_hat = fit_result[f'fiber_{fiber_idx:02d}_local_{compartment}_fractions']
-                fiber_c_signal_hat = fit_result[f'fiber_{fiber_idx:02d}_local_{compartment}_signal']
+                frac_key = f'fiber_{fiber_idx:02d}_local_{compartment}_fractions'
+                sig_key = f'fiber_{fiber_idx:02d}_local_{compartment}_signal'
+
+                fiber_c_fractions_hat = fit_result.get(frac_key)
+                fiber_c_signal_hat = fit_result.get(sig_key)
+
+                # Some Step 2 outcomes can be isotropic-only (0-fiber) even when
+                # the config allows fibers; in that case the per-fiber keys may be absent.
+                if fiber_c_fractions_hat is None or fiber_c_signal_hat is None:
+                    continue
 
                 if compartment == 'fiber':
                     prefix = f'fiber_{fiber_idx - 1}d'

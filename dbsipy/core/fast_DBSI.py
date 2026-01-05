@@ -85,7 +85,7 @@ isotropic_parameter_maps = {True: four_seg_iso_maps,
 
 from dbsipy.core.validation import DataError, validate_tensor
 from dbsipy.core.signal import normalize_signal
-from dbsipy.core.io import load_dwi_nifti, load_bvals_bvecs, mask_dwi
+from dbsipy.core.io import load_dwi_nifti, load_bvals_bvecs, mask_dwi, save_auto_mask_nifti
 from dbsipy.core.configuration import configuration
 from dbsipy.dti.engine import run_dti
 from dbsipy.noddi.engine import run_noddi
@@ -526,6 +526,19 @@ class DBSIpy:
             bvals=self.bvals,
             mask_path=self.configuration.mask_path,
         )
+
+        # If auto-masking was used, persist the generated mask next to the input DWI.
+        if str(self.configuration.mask_path).strip().lower() == 'auto' and mask_source == 'auto':
+            try:
+                out_mask = save_auto_mask_nifti(
+                    mask,
+                    dwi_path=self.configuration.dwi_path,
+                    affine=self.affine,
+                    header=self.header,
+                )
+                logging.info(f"Auto mask saved: {out_mask}")
+            except Exception as e:
+                logging.warning(f"Could not save auto mask next to DWI: {e}")
 
         self.configuration.spatial_dims = spatial_dims
         if self.configuration.diagnostics_enabled:

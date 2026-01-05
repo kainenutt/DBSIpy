@@ -28,6 +28,10 @@ What to update on every version change
 
    - Windows: ``python -m pytest``
 
+   Optional (opt-in physical accuracy checks):
+
+   - ``python -m pytest -m accuracy``
+
 Tagging
 -------
 
@@ -40,6 +44,7 @@ Suggested release checklist
 ---------------------------
 
 - [ ] Tests pass locally (``python -m pytest``)
+- [ ] Optional: accuracy tests pass (``python -m pytest -m accuracy``)
 - [ ] Version bumped in code + ``setup.py``
 - [ ] ``development_notes/CHANGELOG.rst`` updated
 - [ ] Commit merged to the release branch

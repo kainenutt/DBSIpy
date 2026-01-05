@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
 
 import numpy as np
 import nibabel as nb
@@ -9,6 +10,49 @@ import torch
 from dipy.segment.mask import median_otsu
 
 from dbsipy.core.utils import MIN_POSITIVE_SIGNAL
+
+
+def auto_mask_output_path(dwi_path: str) -> str:
+    """Return the output path for an auto-generated mask.
+
+    If the input DWI is called "dwi.nii.gz" or "dwi.nii", the mask is saved as
+    "dwi_auto_mask.nii.gz" in the same directory as the DWI.
+    """
+
+    p = Path(dwi_path)
+    name = p.name
+
+    # Handle .nii.gz explicitly.
+    if name.lower().endswith(".nii.gz"):
+        stem = name[:-7]
+    elif name.lower().endswith(".nii"):
+        stem = name[:-4]
+    else:
+        stem = p.stem
+
+    return str(p.with_name(f"{stem}_auto_mask.nii.gz"))
+
+
+def save_auto_mask_nifti(mask: np.ndarray, *, dwi_path: str, affine: Any, header: Any) -> str:
+    """Save an auto-generated 3D mask NIfTI next to the input DWI.
+
+    Returns the written path.
+    """
+
+    out_path = auto_mask_output_path(dwi_path)
+
+    # NIfTI expects spatial dims; store as uint8 (0/1).
+    mask_u8 = (mask > 0).astype(np.uint8)
+    hdr = header.copy() if header is not None else None
+    if hdr is not None:
+        try:
+            hdr.set_data_dtype(np.uint8)
+        except Exception:
+            pass
+
+    img = nb.Nifti1Image(mask_u8, affine, header=hdr)
+    nb.save(img, out_path)
+    return out_path
 
 
 def load_dwi_nifti(dwi_path: str) -> tuple[np.ndarray, Any, Any]:
