@@ -16,9 +16,9 @@ install_requires = [
 
 setuptools.setup(
     name='DBSIpy',
-    version='0.4.6',
-    description='A Python package for Diffusion Basis Spectrum Imaging (DBSI) and Diffusion Kurtosis Imaging (DKI)',
-    url='https://github.com/jacobblum/DBSI',
+    version='1.0.0',
+    description='A Python package for Diffusion Basis Spectrum Imaging (DBSI) with DTI and NODDI engines',
+    url='https://github.com/kainenutt/DBSIpy',
     author='Kainen L. Utt, Jacob Blum, Y. Wang',
     author_email='k.l.utt@wustl.edu',
     license='BSD (3-Clause)',

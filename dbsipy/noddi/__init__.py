@@ -43,11 +43,16 @@ Data Requirements
 
 See Also
 --------
-src.misc.models.Linear_Models : NODDIModel implementation
-src.noddi.watson_lut : Watson distribution lookup table
-src.core.fast_DBSI : Main orchestrator with NODDI engine option
+dbsipy.misc.models.Linear_Models : NODDIModel implementation
+dbsipy.noddi.watson_lut : Watson distribution lookup table
+dbsipy.core.fast_DBSI : Main orchestrator with NODDI engine option
 """
 
 # Placeholder for now - full implementation in Linear_Models.py
-__version__ = '1.0.0'
+from __future__ import annotations
+
+from dbsipy._version import __version__
+
+__all__ = ["__version__"]
+
 __author__ = 'DBSIpy Development Team'
