@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 .. image :: https://github.com/kainenutt/DBSIpy/blob/03f752a4d37811baa170d6c28ca42db1f8aff01a/figures/Logo.png
  :alt: DBSIPy logo
@@ -43,6 +44,50 @@ From the repository root:
 
      python -m pip install -U pip
      python -m pip install -e [PATH_TO_REPOSITORY]
+.. image :: https://github.com/kainenutt/DBSIpy/blob/main/figures/Logo.png
+ :alt: DBSIPy logo
+
+
+This library, ``DBSIPy``, implements Diffusion Basis Spectrum Imaging with a PyTorch backend to take advantage of modern machine learning optimization algorithms and hardware acceleration.
+
+Installation and Usage
+----------------------
+
+Compatibility
+~~~~~~~~~~~~~
+``DBSIPy`` supports Python 3.8+.
+
+GPU acceleration is optional. If you install a CUDA-enabled build of PyTorch and your system has a compatible NVIDIA GPU + driver, DBSIpy will use it; otherwise it will run on CPU.
+
+Core runtime dependencies are managed by pip (see ``requirements.txt`` / ``setup.py``):
+
+- **PyTorch:** https://pytorch.org/
+- **NumPy:** https://numpy.org/
+- **DIPY:** https://dipy.org/
+- **SciPy:** https://scipy.org/
+- **Nibabel:** https://nipy.org/nibabel/
+- **Pandas:** https://pandas.pydata.org/
+- **Psutil:** https://github.com/giampaolo/psutil
+- **Joblib:** https://joblib.readthedocs.io/en/latest/index.html
+
+Installation
+~~~~~~~~~~~~
+
+DBSIpy is currently intended to be installed from source (this repository).
+
+1) Install PyTorch
+
+PyTorch wheels vary by OS/CUDA. Follow the official selector for your platform:
+https://pytorch.org/get-started/locally/
+
+2) Install DBSIpy
+
+From the repository root:
+
+.. code-block:: bash
+
+     python -m pip install -U pip
+     python -m pip install -e [PATH_TO_REPOSITORY]
 
 For development (linters/tests tooling), also install:
 
@@ -51,7 +96,7 @@ For development (linters/tests tooling), also install:
      python -m pip install -r requirements-dev.txt
 
 Running DBSIpy
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 The installed command-line entrypoint is ``DBSI``.
 
@@ -109,11 +154,4 @@ If you prefer not to install the package, you can run the same CLI from the repo
 
      python master_cli.py --help
      python master_cli.py run --cfg_path PATH/TO/CONFIGURATION.ini
-
-
-
-
-
-
-
-
+.. code-block:: bash
