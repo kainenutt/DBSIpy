@@ -16,7 +16,7 @@ def main() -> None:
     TOOL_DICT = {'run': runCLI, 'benchmark': BenchmarkCLI}
 
     parser = argparse.ArgumentParser(
-        prog='DBSI',
+        prog='DBSIpy',
         description='DBSIpy command line interface',
         epilog='See online documentation for more information about each function.',
     )

@@ -21,9 +21,9 @@ If you see odd import issues on Windows, prefer running tests via ``python -m py
 
 3) Run the CLI
 
-After install, the console script is ``DBSI``.
+After install, the console script is ``DBSIpy``.
 
-- Help: ``DBSI --help``
+- Help: ``DBSIpy --help``
 - Example run (using included test data):
 
   - Example configs live under ``dbsipy/configs/*.ini``

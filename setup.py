@@ -16,7 +16,7 @@ install_requires = [
 
 setuptools.setup(
     name='DBSIpy',
-    version='1.0.0',
+    version='1.0.1',
     description='A Python package for Diffusion Basis Spectrum Imaging (DBSI) with DTI and NODDI engines',
     url='https://github.com/kainenutt/DBSIpy',
     author='Kainen L. Utt, Jacob Blum, Y. Wang',
@@ -32,7 +32,7 @@ setuptools.setup(
         ]
     },
     entry_points={
-        'console_scripts': ['DBSI=dbsipy.master_cli:main'],
+        'console_scripts': ['DBSIpy=dbsipy.master_cli:main'],
     },
     include_package_data=True,
     zip_safe=False,

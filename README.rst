@@ -52,13 +52,13 @@ For development (linters/tests tooling), also install:
 Running DBSIpy
 ~~~~~~~~~~~~~~
 
-The installed command-line entrypoint is ``DBSI``.
+The installed command-line entrypoint is ``DBSIpy``.
 
 .. code-block:: bash
 
-     DBSI --help
-     DBSI run --help
-     DBSI benchmark --help
+     DBSIpy --help
+     DBSIpy run --help
+     DBSIpy benchmark --help
 
 Run from a configuration file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -67,7 +67,7 @@ To run DBSIpy using a pre-existing configuration file:
 
 .. code-block:: bash
 
-     DBSI run --cfg_path PATH/TO/CONFIGURATION.ini
+     DBSIpy run --cfg_path PATH/TO/CONFIGURATION.ini
 
 GUI (interactive) mode
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -76,7 +76,7 @@ If you omit ``--cfg_path``, DBSIpy launches a GUI flow (file dialogs) to select 
 
 .. code-block:: bash
 
-     DBSI run
+     DBSIpy run
 
 Configuration templates
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -92,7 +92,7 @@ To run a benchmark that executes all supported engines on the same dataset and w
 
 .. code-block:: bash
 
-     DBSI benchmark \
+     DBSIpy benchmark \
        --cfg_path PATH/TO/CONFIGURATION.ini \
        --dwi_file PATH/TO/DWI.nii.gz \
        --bval_file PATH/TO/bvals \
