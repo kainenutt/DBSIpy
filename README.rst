@@ -1,5 +1,5 @@
 
-.. image :: https://github.com/kainenutt/DBSIpy/blob/03f752a4d37811baa170d6c28ca42db1f8aff01a/figures/Logo.png
+.. image :: https://github.com/kainenutt/DBSIpy/blob/45d6dc8f79e8591d72877bbb19881d729fd84c22/figures/Logo.png
  :alt: DBSIPy logo
 
 
@@ -55,7 +55,7 @@ Then, clone this repository and run "setup.py" to configure the code.
 Running DBSIpy
 ~~~~~~~~~~~~~~~~~~~~~~
 
-This is an alpha build of ``DBSIpy``. Note that the interface may change with future updates. 
+This is a beta build of ``DBSIpy``. Note that the interface may change with future updates. 
 
 To run DBSIpy in ``interactive mode``, use the following command:
 
@@ -69,6 +69,7 @@ To run DBSIpy from a pre-determined configuration file, use the following comman
 .. code-block:: bash
 
      [USER]$ python PATH_TO_DBSIpy_ROOT_DIRECTORY/master_cli.py run --cfg_path [PATH/TO/CONFIGURATION/FILE.ini]
+
 
 
 
