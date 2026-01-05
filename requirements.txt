@@ -1,0 +1,12 @@
+# Runtime requirements for DBSIpy
+# Keep in sync with install_requires in setup.py
+
+numpy>=1.20.0,<2.0.0
+pandas>=1.3.0
+nibabel>=3.2.0
+dipy>=1.4.0
+scipy>=1.7.0,<2.0.0
+torch>=1.10.0
+joblib>=1.0.0
+tqdm>=4.62.0
+psutil>=5.8.0
