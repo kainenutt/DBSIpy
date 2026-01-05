@@ -1,0 +1,6 @@
+# Development / test requirements
+-r requirements.txt
+
+pytest
+natsort>=8.0.0
+pypdf>=3.0.0
