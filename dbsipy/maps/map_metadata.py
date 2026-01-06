@@ -5,8 +5,8 @@ engines (DTI/DBSI/IA/NODDI): units, descriptions, and expected output shape
 kinds.
 
 The project historically stored:
-- allocation/shape info in per-engine modules (e.g., `src/maps/dti_maps.py`)
-- richer metadata only for NODDI (`src/maps/noddi_maps.py`)
+- allocation/shape info in per-engine modules (e.g., `dbsipy/maps/dti_maps.py`)
+- richer metadata only for NODDI (`dbsipy/maps/noddi_maps.py`)
 
 To reduce drift, use this module for metadata lookups and for reporting in
 manifests.
@@ -100,7 +100,7 @@ COMMON_MAP_SPECS: Dict[str, MapSpec] = {
 }
 
 
-# ---- NODDI canonical metadata (moved from src/maps/noddi_maps.py) ----
+# ---- NODDI canonical metadata (moved from dbsipy/maps/noddi_maps.py) ----
 
 NODDI_SCALAR_MAP_SPECS: Dict[str, MapSpec] = {
     'noddi_ndi': MapSpec('Neurite Density Index (NDI)', 'dimensionless', 'scalar', (0.0, 1.0),

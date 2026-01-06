@@ -25,6 +25,20 @@ def run(cfg_dct):
     else:
         input_cfg_file = run_from_ui()
 
+    # CLI override for output mode (applies to both config and UI runs).
+    try:
+        mode = None
+        if isinstance(cfg_dct, dict):
+            mode = cfg_dct.get('output_mode', None)
+        if mode is not None:
+            mode = str(mode).strip().lower()
+            if mode != '':
+                if not input_cfg_file.has_section('DEBUG'):
+                    input_cfg_file.add_section('DEBUG')
+                input_cfg_file.set('DEBUG', 'output_mode', mode)
+    except Exception:
+        pass
+
     from dbsipy.core.fast_DBSI import DBSIpy
 
     start = time.time()
@@ -133,16 +147,23 @@ def run_from_ui() -> Type[configparser.ConfigParser]:
     assert len(base_configuration_file) > 0, 'No configuration file selected. Select a configuration file to proceed.'
     _dbg(f'Base config selected: {base_configuration_file}')
 
-    verbose_flag = askyesno(
-        title='Verbose Logging for Debugging?',
-        message='Would you like to output all logging parameters (primarily used for debugging)?',
-        parent=root,
+    output_mode = ask_dropdown_choice(
+        root,
+        title='Terminal Output Mode',
+        prompt=(
+            'Select terminal output mode:\n\n'
+            '- quiet: minimal milestones (no progress bars)\n'
+            '- standard: milestones + progress bars\n'
+            '- verbose: expanded user-facing detail\n'
+            '- debug: verbose + developer diagnostics'
+        ),
+        options=['quiet', 'standard', 'verbose', 'debug'],
+        initial='standard',
     )
-    try:
-        root.update()
-    except Exception:
-        pass
-    _dbg(f'Verbose selected: {verbose_flag}')
+    output_mode = (output_mode or 'standard').strip().lower()
+    if output_mode not in {'quiet', 'standard', 'verbose', 'debug'}:
+        output_mode = 'standard'
+    _dbg(f'Output mode selected: {output_mode}')
 
     _dbg('Selecting analysis engine...')
     computational_engine = ask_dropdown_choice(
@@ -515,8 +536,13 @@ def run_from_ui() -> Type[configparser.ConfigParser]:
         input_cfg_file.set('OPTIMIZER', 'step_2_epochs', str(step_2_epochs))
         input_cfg_file.set('OPTIMIZER', 'step_2_loss_fn', str(step_2_loss_fn))
 
-    # Configure Debugging Parameter(s)
-    input_cfg_file.set('DEBUG', 'verbose', str(verbose_flag))
+    # Configure output mode
+    input_cfg_file.set('DEBUG', 'output_mode', str(output_mode))
+    # Fully retired: do not write legacy [DEBUG] verbose.
+    try:
+        input_cfg_file.remove_option('DEBUG', 'verbose')
+    except Exception:
+        pass
 
     # Configure Global Fitting Parameters (DBSI/IA specific)
     if edit_global_params and computational_engine in ['DBSI', 'IA']:

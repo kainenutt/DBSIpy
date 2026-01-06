@@ -21,9 +21,7 @@ from scipy import optimize
 
 MIN_POSITIVE_SIGNAL = 1.0e-6
 
-# ------------------------------------------------------------------------------- #
-#                       Loss Functions for Regularization                         #
-# ------------------------------------------------------------------------------- #
+# Loss functions for regularization
   
 class lfn:
     def __init__(self, loss_fn: str, diffusion_model_class, alpha = 1e-6) -> None:
@@ -54,9 +52,7 @@ def tv(Y, Yhat, L: Type[lfn]):
     return mse_loss(Y, Yhat, L) + L.alpha * torch.abs(L.F.tv_kernel()).sum()
 
 
-# ------------------------------------------------------------------------------- #
-#                       Custom nn layer for optimization                          #
-# ------------------------------------------------------------------------------- #
+# Custom nn layer for optimization
 
 class signal_fraction(Module):
     __constants__ = ['output_dimension', 'feature_dimension']
@@ -83,9 +79,7 @@ class signal_fraction(Module):
         nn.init.uniform_(self.weight, 1e-3, 1e-3 + MIN_POSITIVE_SIGNAL)
 
 
-# ------------------------------------------------------------------------------- #
-#                       Custom nn Module for PGD-NNLSQ                            #
-# ------------------------------------------------------------------------------- #
+# Custom nn module for PGD-NNLSQ
 
 class least_squares_optimizer(nn.Module):
     def __init__(self, A: torch.Tensor, 
@@ -135,223 +129,9 @@ class least_squares_optimizer(nn.Module):
     
     def get_parameters(self):
         return self.v 
-    
-# ------------------------------------------------------------------------------- #
-#                  Numpy Backended NNLSQ - NOT FUNCTIONAL CURRENTLY               #
-# ------------------------------------------------------------------------------- #
-class DBSInpy:
-    def __init__(self, 
-                 dwi:            torch.FloatTensor, 
-                 bvals:          torch.FloatTensor, 
-                 bvecs:          torch.FloatTensor, 
-                 directions:     torch.FloatTensor, 
-                 fractions:      torch.FloatTensor, 
-                 restricted:     torch.FloatTensor,
-                 non_restricted: torch.FloatTensor,
-                 indicies:       List[int], 
-                 DBSI_CONFIG, 
-                 logging_args:   Tuple[int]) -> None:
-        
-        device = DBSI_CONFIG.DEVICE 
-        self.DEVICE = DBSI_CONFIG.DEVICE 
-
-        self.dwi = dwi.to(    device)
-        self.bvals = bvals.to(device)
-        self.bvecs = bvecs.to(device)
-        
-        self.STEP_2_OPTIMIZER_ARGS = DBSI_CONFIG.STEP_2_OPTIMIZER_ARGS
-        self.step_2_axials = DBSI_CONFIG.step_2_axials
-        self.step_2_lambdas = DBSI_CONFIG.step_2_lambdas
-        self.iso_basis = DBSI_CONFIG.iso_basis
-
-        self.directions = directions
-        self.model_map = (~(self.directions == 0).all(dim = 2)).sum(dim = 1)
-        self.max_fiber_number = self.model_map.max().item()
-
-        self._job_id = logging_args[0]
-        self._n_jobs = logging_args[1]    
-        self.pbar = logging_args[2]
-
-        self.LINEAR_DIMS  = DBSI_CONFIG.linear_dims
-        self.SPATIAL_DIMS = DBSI_CONFIG.spatial_dims
-        self.MASK         = DBSI_CONFIG.mask
-        self.idx          = indicies
-
-        if DBSI_CONFIG.four_iso:
-            self.highly_restricted_inds = DBSI_CONFIG.highly_restricted_inds
-        self.restricted_inds = DBSI_CONFIG.restricted_inds
-        self.hindered_inds = DBSI_CONFIG.hindered_inds
-        self.water_inds = DBSI_CONFIG.water_inds
-        
-        self.configuration = DBSI_CONFIG
-
-        self.anisotropicFractionPriors = fractions
-        self.isotropicFractionPriors   = non_restricted + restricted     
-        pass 
-
-    def fit(self):
-
-        Aniso_Models = []
-        Iso_Models   = []
-
-        y = self.dwi.to(self.configuration.HOST).numpy().astype(np.float32)
-
-        for num_fibers in range(1, self.max_fiber_number + 1):
-            
-            # ------------------------------------------------------------------------------- #
-            #                        Do Heavy Calculations on GPU                             #       
-            # ------------------------------------------------------------------------------- #
-     
-            N_voxels = self.dwi[self.model_map == num_fibers].shape[0]
-            f_aniso = torch.zeros((N_voxels, self.bvals.shape[0], num_fibers*self.step_2_axials.shape[0]), device = self.DEVICE)
-            f_iso   = torch.zeros((self.bvals.shape[0], self.iso_basis.shape[0]), device = self.DEVICE)
-
-            O = utils.HouseHolder_evec_2_eframe(self.directions[self.model_map == num_fibers][:, 0:num_fibers, :]).to(self.DEVICE)
-            # Optimized: Replace nested einsum with batched matrix operations
-            # D = O @ diag(lambdas) @ O^T for each batch, fiber, and model
-            lambdas_diag = torch.diag_embed(self.step_2_lambdas.to(self.DEVICE))  # (models, 3, 3)
-            # Expand for batch and fiber dimensions
-            temp = torch.matmul(O.unsqueeze(2), lambdas_diag.unsqueeze(0).unsqueeze(0))  # (b, l, m, 3, 3)
-            D = torch.matmul(temp, torch.transpose(O, 2, 3).unsqueeze(2)).reshape(N_voxels, num_fibers*self.step_2_axials.shape[0], 3, 3)
-
-            # Optimized: Replace einsum with batched operations for anisotropic signal
-            # Compute g^T @ D @ g for each gradient
-            bvecs_expanded = self.bvecs.unsqueeze(0).unsqueeze(0)  # (1, 1, s, 3)
-            Dg = torch.matmul(D.unsqueeze(2), bvecs_expanded.unsqueeze(-1)).squeeze(-1)  # (b, m, s, 3)
-            gDg = torch.matmul(bvecs_expanded.unsqueeze(-2), Dg.unsqueeze(-1)).squeeze(-1).squeeze(-1)  # (b, m, s)
-            f_aniso[:, :, 0:num_fibers*self.step_2_axials.shape[0]] = torch.exp(-self.bvals.unsqueeze(0).unsqueeze(-1) * gDg.transpose(1, 2))
-            
-            # Optimized: Use outer product for isotropic signal
-            f_iso[:,:] = torch.exp(-torch.outer(self.bvals, self.iso_basis.to(self.DEVICE)))[None,:,:]
-
-            # ------------------------------------------------------------------------------- #
-            #                       Transfer Forward Model Data to CPU                        #       
-            # ----------------------------------------------------------- --------------------#
-
-            f_aniso_npy, f_iso_npy = f_aniso.to(self.configuration.HOST).numpy().astype(np.float32), f_iso.to(self.configuration.HOST).numpy().astype(np.float32)
-        
-            outs = Parallel(n_jobs= -1)(
-                delayed(optimize.nnls)(np.concatenate([f_aniso_npy[j, :, :], f_iso_npy], axis = -1), y[j, :]) for j in range(N_voxels)
-            )  
-            xs = np.stack([out[0] for out in outs], axis = 0)
-
-            Aniso_Models.append(
-                                {'Model': f_aniso, 'Data' : torch.from_numpy(xs[:, 0:num_fibers*self.step_2_axials.shape[0]]).float().to(self.configuration.DEVICE) }
-                            )
-            Iso_Models.append(
-                                {'Model': f_iso,   'Data' : torch.from_numpy(xs[:, num_fibers*self.step_2_axials.shape[0]:]).float().to(self.configuration.DEVICE)}
-            )
 
 
-        # totally isotropic voxel
-        num_fibers = 0
-        N_voxels = self.dwi[self.model_map == num_fibers].shape[0]
-        f_iso   = torch.zeros((self.bvals.shape[0], self.iso_basis.shape[0]), device = self.DEVICE)
-        # Optimized: Use outer product instead of einsum
-        f_iso[:,:] = torch.exp(-torch.outer(self.bvals, self.iso_basis.to(self.DEVICE)))[None,:,:]
-        
-        f_iso_npy = f_iso.to(self.configuration.HOST).numpy().astype(np.float32)
-
-        outs = Parallel(n_jobs= -1)(
-                delayed(optimize.nnls)(f_iso_npy, y[j, :]) for j in range(N_voxels)
-            )  
-        
-        if len(outs) > 0:
-            xs = np.stack([out[0] for out in outs], axis = 0)
-        
-        Iso_Models.append(
-                        {'Model': f_iso,   'Data' : torch.from_numpy(xs[:, num_fibers*self.step_2_axials.shape[0]:]).float().to(self.configuration.DEVICE)}
-        )
-        
-        return _FitDBSIModel(Aniso_Models,
-                             Iso_Models,
-                             self.configuration,
-                             self.model_map
-                             )
-
-class _FitDBSIModel:
-    def __init__(self, anisotropic_models: List[Type[least_squares_optimizer]], 
-                 isotropic_models: List[Type[least_squares_optimizer]], 
-                 configuration,
-                 model_map) -> None:
-        
-        self.params             = utils.ParamStoreDict()
-        self.anisotropic_models = anisotropic_models
-        self.isotropic_models   = isotropic_models
-        self.configuration      = configuration
-        self.model_map          = model_map
-
-        self.DEFAULT_ISOTROPIC_CUTS = self.configuration.DEFAULT_ISOTROPIC_CUTS
-        self.DEFAULT_FIBER_CUTS     = self.configuration.DEFAULT_FIBER_CUTS
-
-        self._models_to_parameter_maps()
-        pass
- 
-    def _models_to_parameter_maps(self):
-        N_voxels = self.model_map.shape[0]
-        self.params['isotropic_spectrum'] = torch.zeros((N_voxels,len(self.configuration.iso_basis)), device= self.configuration.DEVICE)
-        for compartment, indicies in self.DEFAULT_ISOTROPIC_CUTS.items():
-            self.params[f'{compartment}_fraction'] = torch.zeros(N_voxels, device= self.configuration.DEVICE)
-            self.params[f'{compartment}_adc'     ] = torch.zeros(N_voxels, device= self.configuration.DEVICE)
-            
-        with torch.no_grad():
-            for num_fibers, (anisotropic_model, isotropic_model) in enumerate(zip(self.anisotropic_models, self.isotropic_models[:-1])): # The last isotropic model is the 0-fiber model!
-                iso_basis_cu = self.configuration.iso_basis.to(self.configuration.DEVICE)
-
-                f_aniso, x_aniso = anisotropic_model['Model'], anisotropic_model['Data']
-                f_iso  , x_iso   = isotropic_model['Model'],   isotropic_model['Data']
-
-                # ------------------------------------------------------------------------------- #
-                #                                Normalization                                    #
-                # ------------------------------------------------------------------------------- #
-
-                N = torch.cat([x_aniso, x_iso], dim = 1).sum(dim = 1)
-                x_aniso[~ (N == 0)] /= N[ ~ (N == 0)][:, None]
-                x_iso[  ~ (N == 0)] /= N[ ~ (N == 0)][:, None]          
-
-                for compartment, indicies in self.DEFAULT_FIBER_CUTS.items():
-                    self.params['fiber_%02d_local_%s_fractions' %(num_fibers+1, compartment)] = torch.zeros(N_voxels, device=self.configuration.DEVICE)
-                    self.params['fiber_%02d_local_%s_signal'    %(num_fibers+1, compartment)] = torch.zeros(N_voxels, anisotropic_model['Model'].shape[-2], device=self.configuration.DEVICE)
-
-                    for j in range(num_fibers+1):
-                        fiber_fractions =  ((x_aniso[:,(j)*self.configuration.step_2_axials.shape[0] : (j+1)*self.configuration.step_2_axials.shape[0]])[..., indicies]).sum(dim = 1)       
-                        fiber_signal = torch.clamp(
-                                                    torch.einsum(
-                                                                'bij, bj -> bi', 
-                                                                (f_aniso[...,(j)*self.configuration.step_2_axials.shape[0] : (j+1)*self.configuration.step_2_axials.shape[0]])[..., indicies], 
-                                                                (x_aniso[...,(j)*self.configuration.step_2_axials.shape[0] : (j+1)*self.configuration.step_2_axials.shape[0]])[..., indicies]
-                                                                ), 
-                                                    min = MIN_POSITIVE_SIGNAL, 
-                                                    max = None
-                                                )
-                        self.params['fiber_%02d_local_%s_fractions' %(j+1, compartment)][self.model_map == (num_fibers+1)]    = fiber_fractions
-                        self.params['fiber_%02d_local_%s_signal'    %(j+1, compartment)][self.model_map    == (num_fibers+1)] = fiber_signal
-
-                self.params['isotropic_spectrum'][self.model_map == (num_fibers + 1)] = x_iso
-                for compartment, indicies in self.DEFAULT_ISOTROPIC_CUTS.items():
-                    self.params[f'{compartment}_fraction'][self.model_map == (num_fibers + 1)] = x_iso[:, indicies].sum(dim = 1)
-                    self.params[f'{compartment}_adc'     ][self.model_map == (num_fibers + 1)] = 1e3 * (x_iso[:, indicies] * iso_basis_cu[indicies]).sum(dim = 1) / x_iso[:, indicies].sum(dim = 1)
-                
-            f_iso  , x_iso   = self.isotropic_models[-1]['Model'], self.isotropic_models[-1]['Data']
-            # ------------------------------------------------------------------------------- #
-            #                                Normalization                                    #
-            # ------------------------------------------------------------------------------- #
-            N = x_iso.sum(dim = 1)
-            x_iso[  ~ (N == 0)] /= N[ ~ (N == 0)][:, None]
-            num_fibers = -1 
-            self.params['isotropic_spectrum'][self.model_map == (num_fibers + 1)] = x_iso
-            if (self.model_map == (num_fibers + 1)).any():
-                for regime, indicies in self.DEFAULT_ISOTROPIC_CUTS.items():
-                        self.params[f'{regime}_fraction'][self.model_map == (num_fibers + 1)] = x_iso[:, indicies].sum(dim = 1)
-                        self.params[f'{regime}_adc'     ][self.model_map == (num_fibers + 1)] = 1e3 * (x_iso[:, indicies] * iso_basis_cu[indicies]).sum(dim = 1) / x_iso[:, indicies].sum(dim = 1)
-
-        self.params['max_group_number'] = self.model_map.max()        
-        return 
-
-
-# ------------------------------------------------------------------------------- #
-#                     nn backended version of DBSI / DBSI-IA                      #
-# ------------------------------------------------------------------------------- #
+# NN-backed version of DBSI / DBSI-IA
 class DBSIModel:
     """
     Wrap least Squares Optimizer
@@ -721,9 +501,7 @@ class FitDBSIModel:
                 f_aniso, x_aniso = anisotropic_model.A, anisotropic_model.get_parameters()
                 f_iso  , x_iso   = isotropic_model.A, isotropic_model.get_parameters()
 
-                # ------------------------------------------------------------------------------- #
-                #                                Normalization                                    #
-                # ------------------------------------------------------------------------------- #
+                # Normalize per-voxel fractions to sum to 1
 
                 N = torch.cat([x_aniso, x_iso], dim = 1).sum(dim = 1)
                 x_aniso[~ (N == 0)] /= N[ ~ (N == 0)][:, None]
@@ -753,9 +531,7 @@ class FitDBSIModel:
                     self.params[f'{compartment}_adc'     ][self.model_map == (num_fibers + 1)] = 1e3 * (x_iso[:, indicies] * iso_basis_cu[indicies]).sum(dim = 1) / x_iso[:, indicies].sum(dim = 1)
                 
             f_iso  , x_iso   = self.isotropic_models[-1].A, self.isotropic_models[-1].get_parameters()
-            # ------------------------------------------------------------------------------- #
-            #                                Normalization                                    #
-            # ------------------------------------------------------------------------------- #
+            # Normalize per-voxel fractions to sum to 1
             N = x_iso.sum(dim = 1)
             x_iso[  ~ (N == 0)] /= N[ ~ (N == 0)][:, None]
             num_fibers = -1 

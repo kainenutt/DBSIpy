@@ -37,7 +37,7 @@ from dbsipy.maps.dbsi_maps import default_dbsi_parameter_maps, expanded_dbsi_par
 from dbsipy.maps.dbsi_ia_maps import default_dbsi_ia_parameter_maps, expanded_dbsi_ia_parameter_maps
 from dbsipy.maps.noddi_maps import SCALAR_MAPS as noddi_scalar_maps, VECTOR_MAPS as noddi_vector_maps
 
-# Default PyTorch Datatype is float32. 
+# Float32 epsilon; used to clamp signals away from zero.
 MIN_POSITIVE_SIGNAL = np.finfo(np.float32).eps
 
 # NODDI parameter maps (scalars + directional maps + DTI for comparison)
@@ -96,14 +96,16 @@ from dbsipy.dbsi_ia.engine import run_ia
 class _DBSIFormatter(logging.Formatter):
     """Consistent, readable console/file formatting.
 
-    - INFO:    "DBSI: <message>"
-    - WARNING: "DBSI [WARNING]: <message>"
-    - ERROR:   "DBSI [ERROR]: <message>"
+    - STATUS/INFO/DETAIL/VERBOSE: "DBSIpy: <message>"
+    - WARNING:                "DBSIpy [WARNING]: <message>"
+    - ERROR:                  "DBSIpy [ERROR]: <message>"
     """
 
     def format(self, record: logging.LogRecord) -> str:
-        prefix = "DBSI"
-        if record.levelno == logging.INFO:
+        from dbsipy.core.logfmt import DETAIL, STATUS, VERBOSE
+
+        prefix = "DBSIpy"
+        if record.levelno in {STATUS, logging.INFO, DETAIL, VERBOSE}:
             return f"{prefix}: {record.getMessage()}"
         return f"{prefix} [{record.levelname}]: {record.getMessage()}"
 
@@ -123,13 +125,13 @@ class DBSIpy:
         return
 
     def _configure_reproducibility(self) -> None:
-        """Best-effort determinism and RNG seeding.
+        """Determinism and RNG seeding.
 
         Controlled via env vars:
         - DBSIPY_SEED: integer seed applied to numpy + torch (+ torch.cuda if available)
-        - DBSIPY_DETERMINISTIC=1: enable best-effort deterministic flags
+        - DBSIPY_DETERMINISTIC=1: enable deterministic flags
 
-        This is intentionally best-effort and should not abort runs.
+        This is intentionally non-fatal and should not abort runs.
         """
         rng: dict[str, object] = {
             'seed_env': os.environ.get('DBSIPY_SEED', None),
@@ -157,7 +159,7 @@ class DBSIpy:
                 pass
             rng['seed'] = int(seed_val)
 
-        # Determinism (best-effort)
+        # Determinism
         deterministic = (os.environ.get('DBSIPY_DETERMINISTIC', '0') == '1')
         rng['deterministic'] = bool(deterministic)
         if deterministic:
@@ -172,7 +174,7 @@ class DBSIpy:
             except Exception:
                 pass
             logging.info(
-                "Deterministic mode enabled (best-effort). Some operations may remain nondeterministic; performance may be reduced."
+                "Deterministic mode enabled. Some operations may remain nondeterministic; performance may be reduced."
             )
 
         try:
@@ -192,7 +194,7 @@ class DBSIpy:
     def _write_run_manifest(self) -> None:
         """Write a provenance manifest alongside saved outputs.
 
-        This is intentionally best-effort: failures should not abort the run.
+        This is intentionally non-fatal: failures should not abort the run.
         """
         try:
             from dbsipy.core.provenance import write_run_manifest
@@ -202,7 +204,7 @@ class DBSIpy:
             logging.exception('Failed to write run_manifest.json')
 
     def _log_banner(self, title: str) -> None:
-        log_banner(title)
+        log_banner(title, level=logging.INFO)
 
     def _write_final_config_snapshot(self) -> None:
         cfg = self.configuration.cfg_file
@@ -219,9 +221,17 @@ class DBSIpy:
             cfg.set('GLOBAL', 'learnable_s0', str(bool(getattr(self.configuration, 'learnable_s0', False))))
         except Exception:
             pass
-        cfg.set('DEBUG', 'verbose', str(bool(self.configuration.verbose_flag)))
+        try:
+            cfg.set('DEBUG', 'output_mode', str(getattr(self.configuration, 'output_mode', 'standard')))
+        except Exception:
+            pass
+        # Fully retired: do not write legacy [DEBUG] verbose into snapshots.
+        try:
+            cfg.remove_option('DEBUG', 'verbose')
+        except Exception:
+            pass
 
-        # Best-effort provenance for troubleshooting.
+        # Provenance for troubleshooting.
         cfg_source = cfg.get('DEBUG', 'cfg_source', fallback=None)
         if cfg_source is not None:
             cfg.set('DEBUG', 'cfg_source', str(cfg_source))
@@ -249,42 +259,51 @@ class DBSIpy:
         logging.info(f"Config snapshot saved: {os.path.basename(snapshot_path)}")
 
     def _log_verbose_runtime_environment(self) -> None:
-        logging.info(' ----------------------------- ')
-        logging.info('      Runtime Environment      ')
-        logging.info(' ----------------------------- ')
-        logging.info(f"  DBSIpy Version   : {__version__}")
-        logging.info(f"  Python           : {sys.version.split()[0]}")
-        logging.info(f"  Platform         : {platform.platform()}")
-        logging.info(f"  NumPy            : {self._safe_version('numpy')}")
-        logging.info(f"  PyTorch          : {self._safe_version('torch')}")
-        logging.info(f"  NiBabel          : {self._safe_version('nibabel')}")
-        logging.info(f"  DIPY             : {self._safe_version('dipy')}")
-        logging.info(f"  Working Dir      : {os.getcwd()}")
+        from dbsipy.core.logfmt import DETAIL
+
+        lg = logging.getLogger()
+        lg.log(DETAIL, ' ----------------------------- ')
+        lg.log(DETAIL, '      Runtime Environment      ')
+        lg.log(DETAIL, ' ----------------------------- ')
+        lg.log(DETAIL, f"  DBSIpy Version   : {__version__}")
+        lg.log(DETAIL, f"  Python           : {sys.version.split()[0]}")
+        lg.log(DETAIL, f"  Platform         : {platform.platform()}")
+        lg.log(DETAIL, f"  NumPy            : {self._safe_version('numpy')}")
+        lg.log(DETAIL, f"  PyTorch          : {self._safe_version('torch')}")
+        lg.log(DETAIL, f"  NiBabel          : {self._safe_version('nibabel')}")
+        lg.log(DETAIL, f"  DIPY             : {self._safe_version('dipy')}")
+        lg.log(DETAIL, f"  Working Dir      : {os.getcwd()}")
 
         try:
             argv_str = shlex.join(sys.argv)
         except Exception:
             argv_str = ' '.join(str(a) for a in sys.argv)
         self._argv_str = argv_str
-        logging.info(f"  Command          : {argv_str}")
-        logging.info(f"  CUDA Available   : {torch.cuda.is_available()}")
-        logging.info(f"  Selected DEVICE  : {self.configuration.DEVICE}")
+        lg.log(DETAIL, f"  Command          : {argv_str}")
+        lg.log(DETAIL, f"  CUDA Available   : {torch.cuda.is_available()}")
+        lg.log(DETAIL, f"  Selected DEVICE  : {self.configuration.DEVICE}")
         if torch.cuda.is_available():
             try:
-                logging.info(f"  CUDA Device      : {torch.cuda.get_device_name(0)}")
+                idx = int(torch.cuda.current_device())
+                lg.log(DETAIL, f"  CUDA Device      : {torch.cuda.get_device_name(idx)} (index={idx})")
             except Exception:
                 pass
 
-        # Best-effort git SHA for reproducibility (works when running from a git checkout)
+        # Git SHA for reproducibility (works when running from a git checkout)
         try:
             project_root = Path(__file__).parent.parent.parent
             sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(project_root), stderr=subprocess.DEVNULL)
             self._git_commit = sha.decode().strip()
-            logging.info(f"  Git Commit       : {self._git_commit}")
+            lg.log(DETAIL, f"  Git Commit       : {self._git_commit}")
         except Exception:
             pass
     
     def configure_logging(self) -> None:
+        from dbsipy.core.logfmt import DETAIL, STATUS, VERBOSE, ensure_custom_levels_registered
+        from dbsipy.core.progress import set_progress_enabled
+
+        ensure_custom_levels_registered()
+
         
         DEFAULT_INPUT_PARAMETERS = [
                                     'STEP_1_OPTIMIZER_ARGS',
@@ -383,32 +402,69 @@ class DBSIpy:
         
         #### Configure Log File ####
         log_file = os.path.join(self.save_dir, 'log')
+        debug_log_file = os.path.join(self.save_dir, 'debug_log')
+
+        mode = getattr(self.configuration, 'output_mode', 'standard')
+        mode = str(mode).strip().lower() if mode is not None else 'standard'
+        if mode not in {'quiet', 'standard', 'verbose', 'debug'}:
+            mode = 'standard'
         
-        # Configure logging with consistent formatting to both file and console.
+        # Configure logging with consistent formatting.
+        # - 'log' captures user-facing run info and warnings (always written)
+        # - 'debug_log' captures developer/debug diagnostics (and all higher levels)
         file_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8')
-        file_handler.setLevel(logging.INFO)
+        # User log should always look like verbose mode.
+        file_handler.setLevel(VERBOSE)
         file_handler.setFormatter(_DBSIFormatter())
 
+        debug_handler = logging.FileHandler(debug_log_file, mode='w', encoding='utf-8')
+        debug_handler.setLevel(logging.DEBUG)
+        debug_handler.setFormatter(_DBSIFormatter())
+
+        class _DebugLogFilter(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+                # Keep debug diagnostics and all warnings/errors, but avoid duplicating
+                # user-facing STATUS/INFO/DETAIL/VERBOSE lines.
+                return (record.levelno == logging.DEBUG) or (record.levelno >= logging.WARNING)
+
+        debug_handler.addFilter(_DebugLogFilter())
+
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        # Console verbosity controlled by output_mode.
+        if mode == 'quiet':
+            console_level = STATUS
+        elif mode == 'standard':
+            console_level = logging.INFO
+        elif mode == 'verbose':
+            console_level = VERBOSE
+        else:  # debug
+            console_level = logging.DEBUG
+        console_handler.setLevel(console_level)
         console_handler.setFormatter(_DBSIFormatter())
 
         logging.basicConfig(
-            level=logging.INFO,
-            handlers=[file_handler, console_handler],
+            level=logging.DEBUG,
+            handlers=[file_handler, debug_handler, console_handler],
             force=True,  # Python 3.8+: force reconfiguration
         )
+
+        # Output mode -> progress bar policy.
+        # Quiet: no progress bars. All other modes: allow progress rendering.
+        set_progress_enabled(False if mode == 'quiet' else True)
+
+        # Always show version/release info in terminal and logs.
+        logging.getLogger().log(STATUS, f"DBSIpy {__version__} (mode={mode})")
 
         # Save a snapshot of the fully resolved config into the results folder.
         # This is especially useful for GUI runs where configs are edited interactively.
         self._write_final_config_snapshot()
 
-        # Add richer environment/version details only when verbose is enabled.
-        if self.configuration.verbose_flag:
-            self._log_verbose_runtime_environment()
+        # Always log environment/version details into the user log at VERBOSE/DETAIL levels.
+        # Console display depends on output_mode thresholds.
+        self._log_verbose_runtime_environment()
      
         self._log_banner('Input Parameters')
-        if self.configuration.verbose_flag and self.configuration.ENGINE in ['DBSI', 'IA']:
+        if self.configuration.ENGINE in ['DBSI', 'IA']:
             logging.info(' ----------------------------- ')
             logging.info('      Optimizer Arguments      ')
             logging.info(' ----------------------------- ')
@@ -429,65 +485,61 @@ class DBSIpy:
         logging.info(
             f"  Run Config   : engine={self.configuration.ENGINE}, output_maps={self.configuration.output_map_set}, "
             f"device={self.configuration.DEVICE}, dti_bval_cut={self.configuration.dti_bval_cutoff}, "
-            f"verbose={bool(self.configuration.verbose_flag)}, diagnostics={bool(getattr(self.configuration, 'diagnostics_enabled', False))}"
+            f"output_mode={getattr(self.configuration, 'output_mode', 'standard')}"
         )
-        if self.configuration.verbose_flag:
-            logging.info(' ----------------------------- ')
-            logging.info('       Global Parameters       ')
-            logging.info(' ----------------------------- ')
-            logging.info(f"  Max. B-value Used: {self.configuration.dti_bval_cutoff}")
-            logging.info(f"  Model Engine     : {self.configuration.ENGINE}")
+        # Additional user-facing details (verbose mode + always in log file).
+        logging.getLogger().log(DETAIL, ' ----------------------------- ')
+        logging.getLogger().log(DETAIL, '       Global Parameters       ')
+        logging.getLogger().log(DETAIL, ' ----------------------------- ')
+        logging.getLogger().log(DETAIL, f"  Max. B-value Used: {self.configuration.dti_bval_cutoff}")
+        logging.getLogger().log(DETAIL, f"  Model Engine     : {self.configuration.ENGINE}")
 
-            if self.configuration.ENGINE == 'DTI':
-                logging.info(' ----------------------------- ')
-                logging.info('    DTI Fit Parameters         ')
-                logging.info(' ----------------------------- ')
-                logging.info(f"  Fit Method       : {getattr(self.configuration, 'dti_fit_method', 'WLS')}")
-                logging.info(f"  Learning Rate    : {getattr(self.configuration, 'dti_lr', 0.01)}")
-                logging.info(f"  Epochs           : {getattr(self.configuration, 'dti_epochs', 200)}")
-            elif self.configuration.ENGINE == 'NODDI':
-                # NODDI-specific parameters
-                logging.info(' ----------------------------- ')
-                logging.info('   NODDI Optimizer Arguments   ')
-                logging.info(' ----------------------------- ')
-                logging.info(f"  Learning Rate         : {self.configuration.noddi_lr}")
-                logging.info(f"  Epochs                : {self.configuration.noddi_epochs}")
-                logging.info(f"  Intra-cellular d      : {self.configuration.noddi_d_ic*1e3} um^2/ms")
-                logging.info(f"  Isotropic d           : {self.configuration.noddi_d_iso*1e3} um^2/ms")
-                logging.info(f"  Tortuosity constraint : {self.configuration.noddi_use_tortuosity}")
-            else:
-                # DBSI/IA-specific parameters
-                logging.info(f"  Weight Threshold : {self.configuration.weight_threshold}")
-                logging.info(f"  Max. Fiber Number: {self.configuration.max_group_number}")
-                logging.info(' ----------------------------- ')
-                logging.info('   Step 1 Fitting Parameters   ')
-                logging.info(' ----------------------------- ')
-                logging.info(f"  Angle Threshold          : {self.configuration.angle_threshold}")
-                logging.info(f"  Fiber Weight Threshold   : {self.configuration.fiber_threshold}")
-                logging.info(f"  Angle Basis Set          : {self.configuration.cfg_file['STEP_1']['angle_basis']}")
-                logging.info(f"  Isotropic Basis Set      : {self.configuration.cfg_file['STEP_1']['iso_basis']}")
-                logging.info(f"  Step 1 Axial Diffusivity : {round(float(self.configuration.step_1_axial)*1e3,3)} um^2/ms")
-                logging.info(f"  Step 1 Radial Diffusivity: {round(float(self.configuration.step_1_radial)*1e3,3)} um^2/ms")
-                logging.info(' ----------------------------- ')
-                logging.info('   Step 2 Fitting Parameters   ')
-                logging.info(' ----------------------------- ')
-                logging.info(f"  Step 2 Axial Basis Set   : {self.configuration.cfg_file['STEP_2']['step_2_axials']}")
-                logging.info(f"  Step 2 Radial Basis Set  : {self.configuration.cfg_file['STEP_2']['step_2_radials']}")
-                if self.configuration.ENGINE == 'IA':
-                    logging.info(f"  Intra-Axonal RD Threshold: {self.configuration.intra_threshold} um^2/ms")
-                logging.info(' ----------------------------- ')
-                logging.info(' Isotropic Spectrum Partitions ')
-                logging.info(' ----------------------------- ')
-                if self.configuration.four_iso:
-                    logging.info(f"  Highly-Restricted Threshold: <{self.configuration.highly_restricted_threshold*1e3} um^2/ms")
-                logging.info(f"  Restricted Threshold       : <{self.configuration.restricted_threshold*1e3} um^2/ms")
-                logging.info(f"  Free Water Threshold       : >{self.configuration.water_threshold*1e3} um^2/ms")
+        if self.configuration.ENGINE == 'DTI':
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, '    DTI Fit Parameters         ')
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, f"  Fit Method       : {getattr(self.configuration, 'dti_fit_method', 'WLS')}")
+            logging.getLogger().log(DETAIL, f"  Learning Rate    : {getattr(self.configuration, 'dti_lr', 0.01)}")
+            logging.getLogger().log(DETAIL, f"  Epochs           : {getattr(self.configuration, 'dti_epochs', 200)}")
+        elif self.configuration.ENGINE == 'NODDI':
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, '   NODDI Optimizer Arguments   ')
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, f"  Learning Rate         : {self.configuration.noddi_lr}")
+            logging.getLogger().log(DETAIL, f"  Epochs                : {self.configuration.noddi_epochs}")
+            logging.getLogger().log(DETAIL, f"  Intra-cellular d      : {self.configuration.noddi_d_ic*1e3} um^2/ms")
+            logging.getLogger().log(DETAIL, f"  Isotropic d           : {self.configuration.noddi_d_iso*1e3} um^2/ms")
+            logging.getLogger().log(DETAIL, f"  Tortuosity constraint : {self.configuration.noddi_use_tortuosity}")
+        else:
+            logging.getLogger().log(DETAIL, f"  Weight Threshold : {self.configuration.weight_threshold}")
+            logging.getLogger().log(DETAIL, f"  Max. Fiber Number: {self.configuration.max_group_number}")
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, '   Step 1 Fitting Parameters   ')
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, f"  Angle Threshold          : {self.configuration.angle_threshold}")
+            logging.getLogger().log(DETAIL, f"  Fiber Weight Threshold   : {self.configuration.fiber_threshold}")
+            logging.getLogger().log(DETAIL, f"  Angle Basis Set          : {self.configuration.cfg_file['STEP_1']['angle_basis']}")
+            logging.getLogger().log(DETAIL, f"  Isotropic Basis Set      : {self.configuration.cfg_file['STEP_1']['iso_basis']}")
+            logging.getLogger().log(DETAIL, f"  Step 1 Axial Diffusivity : {round(float(self.configuration.step_1_axial)*1e3,3)} um^2/ms")
+            logging.getLogger().log(DETAIL, f"  Step 1 Radial Diffusivity: {round(float(self.configuration.step_1_radial)*1e3,3)} um^2/ms")
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, '   Step 2 Fitting Parameters   ')
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, f"  Step 2 Axial Basis Set   : {self.configuration.cfg_file['STEP_2']['step_2_axials']}")
+            logging.getLogger().log(DETAIL, f"  Step 2 Radial Basis Set  : {self.configuration.cfg_file['STEP_2']['step_2_radials']}")
+            if self.configuration.ENGINE == 'IA':
+                logging.getLogger().log(DETAIL, f"  Intra-Axonal RD Threshold: {self.configuration.intra_threshold} um^2/ms")
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            logging.getLogger().log(DETAIL, ' Isotropic Spectrum Partitions ')
+            logging.getLogger().log(DETAIL, ' ----------------------------- ')
+            if self.configuration.four_iso:
+                logging.getLogger().log(DETAIL, f"  Highly-Restricted Threshold: <{self.configuration.highly_restricted_threshold*1e3} um^2/ms")
+            logging.getLogger().log(DETAIL, f"  Restricted Threshold       : <{self.configuration.restricted_threshold*1e3} um^2/ms")
+            logging.getLogger().log(DETAIL, f"  Free Water Threshold       : >{self.configuration.water_threshold*1e3} um^2/ms")
         return
     
     def load(self) -> None:
-        # ------------------------------------------------------------------------------- #
-        #                              Load Diffusion Data                                #
-        # ------------------------------------------------------------------------------- #
+        # Load diffusion data
   
         # Cull voxels with signals below PyTorch's machine limits for float32 types.
         self.dwi, self.header, self.affine = load_dwi_nifti(self.configuration.dwi_path)
@@ -503,23 +555,28 @@ class DBSIpy:
         assert self.bvals.shape[0] == self.bvecs.shape[0], (
             "Please ensure that .bval and .bvec file have the number of volumes as the first dimension"
         )
-        logging.info(
+        from dbsipy.core.logfmt import DETAIL
+
+        logging.getLogger().log(
+            DETAIL,
             f"Loaded DWI: shape={self.dwi.shape[0]} x {self.dwi.shape[1]} x {self.dwi.shape[2]} x {self.dwi.shape[3]}, "
-            f"volumes={len(self.bvals)}"
+            f"volumes={len(self.bvals)}",
         )
 
         if self.configuration.diagnostics_enabled:
             try:
-                logging.info(f"Diagnostics: ENGINE={self.configuration.ENGINE}, DEVICE={self.configuration.DEVICE}, HOST={getattr(self.configuration, 'HOST', 'unknown')}")
+                logging.debug(
+                    f"Diagnostics: ENGINE={self.configuration.ENGINE}, DEVICE={self.configuration.DEVICE}, HOST={getattr(self.configuration, 'HOST', 'unknown')}"
+                )
                 if torch.cuda.is_available():
-                    logging.info(f"Diagnostics: CUDA available, current_device={torch.cuda.current_device()}, name={torch.cuda.get_device_name(torch.cuda.current_device())}")
+                    logging.debug(
+                        f"Diagnostics: CUDA available, current_device={torch.cuda.current_device()}, name={torch.cuda.get_device_name(torch.cuda.current_device())}"
+                    )
             except Exception:
                 pass
         
 
-        # ------------------------------------------------------------------------------- #
-        #                                   Apply Mask                                    #
-        # ------------------------------------------------------------------------------- #
+        # Apply mask
 
         mask, dwi_masked, mask_source, spatial_dims, vol_idx, non_trivial_signal_mask = mask_dwi(
             self.dwi,
@@ -542,9 +599,9 @@ class DBSIpy:
 
         self.configuration.spatial_dims = spatial_dims
         if self.configuration.diagnostics_enabled:
-            logging.info(f'Diagnostics: volume_index={vol_idx}')
+            logging.debug(f'Diagnostics: volume_index={vol_idx}')
             try:
-                logging.info(
+                logging.debug(
                     f"Diagnostics: non_trivial_signal_mask_shape="
                     f"{non_trivial_signal_mask.shape[0]} x {non_trivial_signal_mask.shape[1]} x {non_trivial_signal_mask.shape[2]}"
                 )
@@ -558,13 +615,13 @@ class DBSIpy:
             f"Mask applied: source={mask_source}, masked_voxels={self.dwi.shape[0]:,}, volumes={self.dwi.shape[1]}"
         )
         if self.configuration.diagnostics_enabled:
-            logging.info(f"Diagnostics: linearized_dwi_shape={self.dwi.shape[0]} x {self.dwi.shape[1]}")
+            logging.debug(f"Diagnostics: linearized_dwi_shape={self.dwi.shape[0]} x {self.dwi.shape[1]}")
         
         # Validate DWI data after loading
         try:
             validate_tensor(self.dwi, "DWI signal after masking", allow_negative=False, allow_inf=False)
             if self.configuration.diagnostics_enabled:
-                logging.info("Diagnostics: DWI data validation passed")
+                logging.debug("Diagnostics: DWI data validation passed")
         except DataError as e:
             logging.error(f"✗ DWI data validation failed:\n{e}")
             raise
@@ -575,7 +632,7 @@ class DBSIpy:
         try:
             validate_tensor(self.dwi, "Normalized DWI signal", allow_negative=False, allow_inf=False)
             if self.configuration.diagnostics_enabled:
-                logging.info("Diagnostics: Normalized DWI signal validation passed")
+                logging.debug("Diagnostics: Normalized DWI signal validation passed")
         except DataError as e:
             logging.error(f"✗ Normalized signal validation failed:\n{e}")
             raise
@@ -586,10 +643,10 @@ class DBSIpy:
 
         if self.configuration.diagnostics_enabled:
             try:
-                logging.info(f"Diagnostics: spatial_dims={self.configuration.spatial_dims}, masked_voxels={self.configuration.linear_dims:,}")
-                logging.info(f"Diagnostics: bvals={int(self.bvals.shape[0])}, non_trivial_voxels={(~(self.dwi_raw == 0).all(dim=1)).sum().item():,}")
+                logging.debug(f"Diagnostics: spatial_dims={self.configuration.spatial_dims}, masked_voxels={self.configuration.linear_dims:,}")
+                logging.debug(f"Diagnostics: bvals={int(self.bvals.shape[0])}, non_trivial_voxels={(~(self.dwi_raw == 0).all(dim=1)).sum().item():,}")
                 if self.signal_scale_stats is not None:
-                    logging.info(
+                    logging.debug(
                         "Diagnostics: signal_normalization=%s, scale_min=%.6g, scale_median=%.6g, scale_max=%.6g",
                         self.signal_normalization_mode,
                         self.signal_scale_stats['min'],
@@ -820,6 +877,9 @@ class DBSIpy:
 
         engine = str(self.configuration.ENGINE).upper()
         engine_display = 'DBSI-IA' if engine == 'IA' else engine
+        from dbsipy.core.logfmt import STATUS
+
+        logging.getLogger().log(STATUS, f"Starting {engine_display}")
         self._log_banner(f'Starting {engine_display}')
         
         self._run_started_utc = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
@@ -827,13 +887,21 @@ class DBSIpy:
 
         self._configure_reproducibility()
 
+        logging.getLogger().log(STATUS, "Phase: load")
         self.load()
+        logging.getLogger().log(STATUS, "Phase: calc")
         self.calc()
+        logging.getLogger().log(STATUS, "Phase: save")
         self.save()
 
         self._total_runtime_s = float(time.time() - start_t)
         self._run_finished_utc = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
         self._write_run_manifest()
+
+        try:
+            logging.getLogger().log(STATUS, f"Finished {engine_display} in {self._total_runtime_s:.2f}s; output={self.save_dir}")
+        except Exception:
+            pass
 
         return 
 

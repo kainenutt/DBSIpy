@@ -1,8 +1,8 @@
 """Backward-compatible NODDI map metadata.
 
 This module historically held the canonical map metadata for NODDI. To reduce
-drift with other engines, metadata now lives in `src/maps/map_metadata.py` and
-this module re-exports the same public API.
+drift with other engines, metadata now lives in `map_metadata.py` and this
+module re-exports the same public API.
 """
 
 from dbsipy.maps.map_metadata import (

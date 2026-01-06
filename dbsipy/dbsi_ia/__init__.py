@@ -38,6 +38,6 @@ Same as DBSI engine: all diffusivity outputs in **um^2/ms** (x1e3 from mm^2/s).
 
 See Also
 --------
-src.dbsi : Standard DBSI engine without IA/EA separation
-src.core.fast_DBSI : Contains DEFAULT_FIBER_CUTS thresholds
+dbsipy.dbsi : Standard DBSI engine without IA/EA separation
+dbsipy.core.fast_DBSI : Contains DEFAULT_FIBER_CUTS thresholds
 """

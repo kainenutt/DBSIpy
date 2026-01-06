@@ -50,7 +50,6 @@ class ParamStoreDict:
     ----------
     ..[1] Eli Bingham et. al., "Pyro: Deep Universal Probabilistic Programming. Journal of Machine Learning Research", 2018.
     """
-    # -------------------------------------------------------------------------------
     def __init__(self):
         """
         initialize ParamStore data structures
@@ -117,8 +116,7 @@ class ParamStoreDict:
         Set the parameter map to a value. 
         """     
         self._param_maps[name] = value
-     
-# -------------------------------------------------------------------------------
+
 
 class parameter_map:
     def __init__(self, pmap_name: str, 
@@ -202,7 +200,10 @@ class parameter_map:
                 vmax = float(np.max(data[finite])) if finite.any() else float('nan')
                 nb_nan = int(np.isnan(data).sum())
                 nb_inf = int(np.isinf(data).sum())
-                print(f"DBSI IO: saving {self.pmap_name} shape={tuple(data.shape)} dtype={data.dtype} range=[{vmin:.6g},{vmax:.6g}] nan={nb_nan} inf={nb_inf} -> {out_path}")
+                logging.info(
+                    f"DBSI IO: saving {self.pmap_name} shape={tuple(data.shape)} dtype={data.dtype} "
+                    f"range=[{vmin:.6g},{vmax:.6g}] nan={nb_nan} inf={nb_inf} -> {out_path}"
+                )
             except Exception:
                 pass
         try:

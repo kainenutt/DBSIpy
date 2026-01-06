@@ -20,11 +20,33 @@ class configuration:
         self._setup_config(cfg_file)
         pass
 
+    @staticmethod
+    def _normalize_output_mode(value: str | None) -> str:
+        if value is None:
+            return 'standard'
+        v = str(value).strip().lower()
+        if v in {'quiet', 'q'}:
+            return 'quiet'
+        if v in {'standard', 'std', 'default'}:
+            return 'standard'
+        if v in {'verbose', 'v'}:
+            return 'verbose'
+        if v in {'debug', 'dbg'}:
+            return 'debug'
+        raise ConfigurationError(
+            "Invalid output_mode value.\n"
+            "Valid options: quiet | standard | verbose | debug\n"
+            f"Current value: '{value}'"
+        )
+
+    @property
+    def output_mode(self) -> str:
+        return str(getattr(self, '_output_mode', 'standard'))
+
     @property
     def diagnostics_enabled(self) -> bool:
-        # Primary switch: config [DEBUG] verbose
-        # Optional override: env var DBSIPY_DIAGNOSTICS=1
-        return bool(getattr(self, 'verbose_flag', False)) or (os.environ.get('DBSIPY_DIAGNOSTICS', '0') == '1')
+        # Developer/debug stream should only be enabled when explicitly requested.
+        return self.output_mode == 'debug'
 
     @staticmethod
     def _normalize_output_map_set(value: str | None) -> str:
@@ -402,7 +424,13 @@ class configuration:
                         f"Current value: '{input_cfg_file['OPTIMIZER']['step_2_min_delta']}'"
                     )
 
-        logging.info("✓ Configuration validation passed")
+        try:
+            # DETAIL level (standard+) once logging is configured.
+            from dbsipy.core.logfmt import DETAIL
+
+            logging.getLogger().log(DETAIL, "✓ Configuration validation passed")
+        except Exception:
+            logging.info("✓ Configuration validation passed")
 
     def _setup_config(self, input_cfg_file) -> None:
         # Convert basis set paths between Windows and Linux automatically
@@ -416,15 +444,28 @@ class configuration:
         self.bval_path = input_cfg_file['INPUT']['bval_file']
         self.bvec_path = input_cfg_file['INPUT']['bvec_file']
 
-        # Verbose Output Flag (For Debugging)
-        # Use getboolean so "False" is treated as False (not truthy string).
-        self.verbose_flag = input_cfg_file.getboolean('DEBUG', 'verbose', fallback=False)
+        # Output mode (controls terminal verbosity + progress rendering).
+        # Primary switch: [DEBUG] output_mode
+        raw_output_mode = None
+        try:
+            raw_output_mode = input_cfg_file.get('DEBUG', 'output_mode', fallback=None)
+        except Exception:
+            raw_output_mode = None
 
-        # Progress bars can add non-trivial overhead (especially in tight training loops).
-        # Treat non-verbose mode as a request to disable progress rendering entirely.
-        # This is enforced via the central progress helper (dbsipy.core.progress).
-        if not bool(self.verbose_flag):
-            os.environ["DBSIPY_PROGRESS"] = "0"
+        # Backwards compatibility (deprecated): legacy [DEBUG] verbose.
+        if raw_output_mode is None:
+            try:
+                legacy_verbose = input_cfg_file.getboolean('DEBUG', 'verbose', fallback=False)
+            except Exception:
+                legacy_verbose = False
+            if input_cfg_file.has_option('DEBUG', 'verbose'):
+                logging.warning("Config key [DEBUG] verbose is deprecated; use [DEBUG] output_mode instead.")
+            raw_output_mode = 'verbose' if bool(legacy_verbose) else 'standard'
+
+        self._output_mode = self._normalize_output_mode(raw_output_mode)
+
+        # Keep legacy attribute for older call sites (derived from output_mode).
+        self.verbose_flag = bool(self._output_mode in {'verbose', 'debug'})
 
         # Global Parameters
         self.ENGINE = input_cfg_file['GLOBAL']['model_engine']

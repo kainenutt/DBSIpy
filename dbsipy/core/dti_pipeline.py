@@ -12,7 +12,7 @@ def set_if_present(params: dict, map_name: str, value) -> None:
         if map_name in params:
             params[map_name].pmap = value
     except Exception:
-        # Best-effort: a missing map or incompatible shape should not crash unrelated flows.
+        # A missing map or incompatible shape should not crash unrelated flows.
         return
 
 

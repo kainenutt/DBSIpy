@@ -48,7 +48,6 @@ dbsipy.noddi.watson_lut : Watson distribution lookup table
 dbsipy.core.fast_DBSI : Main orchestrator with NODDI engine option
 """
 
-# Placeholder for now - full implementation in Linear_Models.py
 from __future__ import annotations
 
 from dbsipy._version import __version__

@@ -105,7 +105,7 @@ def normalize_signal(
 
 
 def _as_float_dict(x: Any) -> dict[str, float] | None:
-    """Best-effort conversion helper (used for defensive copying)."""
+    """Conversion helper (used for defensive copying)."""
     if x is None:
         return None
     if isinstance(x, dict):

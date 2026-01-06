@@ -45,9 +45,13 @@ def test_benchmark_cli_validate_args_happy_path(tmp_path: Path) -> None:
             "mask_file": "auto",
             "output_root": str(tmp_path / "out"),
             "repeats": 1,
+            "resource_sample_interval_s": 0.1,
+            "no_resource_monitor": True,
         }
     )
 
     assert args["mask_file"] == "auto"
     assert Path(args["output_root"]).exists()
     assert args["repeats"] == 1
+    assert args["resource_sample_interval_s"] == 0.1
+    assert args["resource_monitor"] is False

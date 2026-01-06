@@ -535,8 +535,7 @@ class fit_model_wrapper(fit_diffusion_tensor_model):
             fit_diffusion_tensor_model.__init__(self, predicted_signal, tensor_elements)
         pass 
 
-#                            NODDI Implementation
-# ==============================================================================
+# NODDI implementation
 
 class NODDIModel:
     """
@@ -576,7 +575,7 @@ class NODDIModel:
         self.d_ic_fixed = 1.7e-3  # mm^2/s = 1.7 um^2/ms (intra-cellular)
         self.d_iso_fixed = 3.0e-3  # mm^2/s = 3.0 um^2/ms (free water)
         
-        # We do NOT use the Watson LUT in `src/noddi/watson_lut.py` for directional fitting.
+        # We do NOT use the precomputed Watson LUT for directional fitting.
         # Instead we use a differentiable numerical quadrature over the Watson ODF that
         # preserves dependence on the angle between gradient and mean direction.
         self.watson_lut = None
@@ -731,7 +730,7 @@ class NODDIModel:
                         scaled = int((gpu_budget_bytes * headroom) / max(1.0, bytes_per_voxel))
                         candidate = max(1, min(candidate, scaled))
                 except Exception:
-                    # Best-effort only; if probing fails, keep the existing candidate and rely on OOM backoff.
+                    # If probing fails, keep the existing candidate and rely on OOM backoff.
                     pass
 
             bs = max(1, int(candidate))
@@ -964,7 +963,7 @@ class NODDIOptimizer(torch.nn.Module):
         self.od_logit = torch.nn.Parameter(logit(initial_params['od']).unsqueeze(1))
         # Extra-cellular parallel diffusivity is bounded to a physiological range via a
         # smooth (sigmoid) transform to avoid hard-clamp gradients going to zero.
-        # Range matches `src/maps/noddi_maps.py`: 0.5-3.0 um^2/ms (0.0005-0.0030 mm^2/s).
+        # Physiological range: 0.5-3.0 um^2/ms (0.0005-0.0030 mm^2/s).
         self._d_ec_par_min = 0.0005
         self._d_ec_par_max = 0.0030
         span = self._d_ec_par_max - self._d_ec_par_min
@@ -980,7 +979,7 @@ class NODDIOptimizer(torch.nn.Module):
 
         if not self.use_tortuosity:
             # Optional independent d_ec_perp (bounded) when tortuosity is disabled.
-            # Range matches `src/maps/noddi_maps.py`: 0.1-1.5 um^2/ms (0.0001-0.0015 mm^2/s).
+            # Physiological range: 0.1-1.5 um^2/ms (0.0001-0.0015 mm^2/s).
             self._d_ec_perp_min = 0.0001
             self._d_ec_perp_max = 0.0015
             span_perp = self._d_ec_perp_max - self._d_ec_perp_min

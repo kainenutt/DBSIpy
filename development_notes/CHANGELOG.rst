@@ -22,3 +22,10 @@ All notable changes to this project will be documented in this file.
 - Testing: add opt-in ``accuracy`` tests using simulated phantoms (skipped by default; run with ``python -m pytest -m accuracy``).
 - Docs: add Sphinx + Read the Docs scaffolding under ``docs/`` and document the opt-in accuracy test suite.
 - Maintenance: remove obsolete deployment config initialization script.
+
+1.1.0 (2026-01-06)
+------------------
+
+- Output modes: standardize console behavior on ``[DEBUG] output_mode = quiet|standard|verbose|debug`` and add ``--output_mode`` overrides to CLI/benchmark.
+- Configs/UI: fully retire writing ``[DEBUG] verbose`` (templates, GUI flow, and saved ``config_final.ini`` snapshots no longer emit it; deprecated parsing fallback remains for older configs).
+- Provenance: record ``output_mode`` explicitly in ``run_manifest.json``.

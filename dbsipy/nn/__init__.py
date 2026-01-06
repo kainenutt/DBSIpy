@@ -32,6 +32,6 @@ Optimization Strategy
 
 See Also
 --------
-src.misc.models.Linear_Models : DTI implementation
-src.core.fast_DBSI : Main DBSI pipeline orchestrator
+dbsipy.misc.models.Linear_Models : DTI implementation
+dbsipy.core.fast_DBSI : Main DBSI pipeline orchestrator
 """

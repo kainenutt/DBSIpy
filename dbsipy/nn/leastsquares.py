@@ -417,13 +417,13 @@ def _package_data(self) -> Type[BatchedCalls]:
     batch_size = int(self._max_mem_prop * self._max_nbytes // denom)
     batch_size = max(1, batch_size)
 
-    diagnostics = bool(getattr(self.DBSIModel.configuration, 'verbose_flag', False)) or (os.environ.get('DBSIPY_DIAGNOSTICS', '0') == '1')
+    diagnostics = bool(getattr(self.DBSIModel.configuration, 'diagnostics_enabled', False)) or (os.environ.get('DBSIPY_DIAGNOSTICS', '0') == '1')
     if diagnostics:
         try:
-            logging.info(
+            logging.debug(
                 f"Diagnostics: Step2 batching denom≈{float(denom):.3g}, max_nbytes≈{float(self._max_nbytes):.3g}, batch_size≈{batch_size}"
             )
-            logging.info(
+            logging.debug(
                 f"Diagnostics: Step2 dims n_vox={int(self.DBSIModel.configuration.linear_dims):,}, n_bvals={int(self.DBSIModel.bvals.shape[0])}, max_fibers={int(max_num_fibers)}, n_iso={int(self.DBSIModel.configuration.iso_basis.shape[0])}"
             )
         except Exception:
@@ -437,7 +437,7 @@ def _package_data(self) -> Type[BatchedCalls]:
 
     if diagnostics:
         try:
-            logging.info(f"Diagnostics: Step2 n_jobs={int(self.n_jobs)}, epochs={int(self.DBSIModel.configuration.STEP_2_OPTIMIZER_ARGS['epochs'])}, total_pbar_steps={int(total)}")
+            logging.debug(f"Diagnostics: Step2 n_jobs={int(self.n_jobs)}, epochs={int(self.DBSIModel.configuration.STEP_2_OPTIMIZER_ARGS['epochs'])}, total_pbar_steps={int(total)}")
         except Exception:
             pass
         
@@ -503,7 +503,11 @@ class CUDABackend:
     def __init__(self, DBSIModel, ModelPriors, engine, max_mem_prop = .2 ) -> None:
 
         self._max_mem_prop = max_mem_prop 
-        self._max_nbytes   = (self._max_mem_prop * torch.cuda.get_device_properties(0).total_memory) - torch.cuda.memory_allocated(0)
+        try:
+            dev_idx = int(torch.cuda.current_device())
+        except Exception:
+            dev_idx = 0
+        self._max_nbytes   = (self._max_mem_prop * torch.cuda.get_device_properties(dev_idx).total_memory) - torch.cuda.memory_allocated(dev_idx)
         self.DBSIModel     = DBSIModel
         self.ModelPriors   = ModelPriors
 
@@ -549,7 +553,14 @@ class MultiprocessingBackend:
     """
     def __init__(self, DBSIModel, ModelPriors, engine, max_mem_prop = .25 ) -> None:
         self._max_mem_prop = max_mem_prop 
-        self._max_nbytes   = self._max_mem_prop * psutil.virtual_memory().available 
+        # If nn._memory is available, use its job/cgroup-aware estimate.
+        try:
+            from dbsipy.nn._memory import get_effective_available_cpu_memory_bytes
+
+            avail = int(get_effective_available_cpu_memory_bytes())
+        except Exception:
+            avail = int(psutil.virtual_memory().available)
+        self._max_nbytes   = int(self._max_mem_prop * avail)
         self.DBSIModel     = DBSIModel
         self.ModelPriors   = ModelPriors
 

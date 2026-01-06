@@ -3,6 +3,16 @@ Outputs
 
 DBSIpy writes NIfTI maps to the chosen output directory.
 
+Benchmark summary
+-----------------
+
+The ``DBSIpy benchmark`` command also writes a consolidated JSON file named like:
+
+- ``*_DBSIpy_benchmark_summary.json``
+
+This includes per-run timings, process-scoped resource deltas, CUDA peak memory (when applicable),
+and the effective configuration used to run each engine.
+
 Map naming
 ----------
 

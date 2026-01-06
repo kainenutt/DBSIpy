@@ -3,7 +3,7 @@
 This module is intentionally designed to be imported without triggering GUI code.
 It centralizes creation of the on-disk `run_manifest.json` written after a run.
 
-Keep functions here best-effort: provenance should never abort a computation.
+Provenance should never abort a computation.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def write_run_manifest(model: Any, *, dbsipy_version: str) -> None:
 
     Notes
     -----
-    This function is best-effort by design: failures are logged and ignored.
+    Failures are logged and ignored.
     """
 
     try:
@@ -80,7 +80,7 @@ def write_run_manifest(model: Any, *, dbsipy_version: str) -> None:
             "dti_bval_cut": getattr(configuration, "dti_bval_cutoff", None),
             "signal_normalization": getattr(configuration, "signal_normalization", None),
             "learnable_s0": bool(getattr(configuration, "learnable_s0", False)),
-            "verbose": bool(getattr(configuration, "verbose_flag", False)),
+            "output_mode": str(getattr(configuration, "output_mode", "standard")),
             "inputs": {
                 "dwi_file": getattr(configuration, "dwi_path", None),
                 "mask_file": getattr(configuration, "mask_path", None),
@@ -240,7 +240,7 @@ def write_run_manifest(model: Any, *, dbsipy_version: str) -> None:
             "device": getattr(configuration, "DEVICE", None),
             "host": getattr(configuration, "HOST", None),
             "diagnostics_enabled": bool(getattr(configuration, "diagnostics_enabled", False)),
-            "verbose": bool(getattr(configuration, "verbose_flag", False)),
+            "output_mode": str(getattr(configuration, "output_mode", "standard")),
             "dti_bval_cut": getattr(configuration, "dti_bval_cutoff", None),
             "signal_normalization": getattr(
                 model, "signal_normalization_mode", getattr(configuration, "signal_normalization", None)
@@ -278,7 +278,10 @@ def write_run_manifest(model: Any, *, dbsipy_version: str) -> None:
             "rng": dict(getattr(model, "_rng", {}) or {}),
             "cuda": {
                 "available": bool(torch.cuda.is_available()),
-                "device_name": (torch.cuda.get_device_name(0) if torch.cuda.is_available() else None),
+                "device_index": (int(torch.cuda.current_device()) if torch.cuda.is_available() else None),
+                "device_name": (
+                    torch.cuda.get_device_name(torch.cuda.current_device()) if torch.cuda.is_available() else None
+                ),
             },
             "provenance": {
                 "argv": getattr(model, "_argv_str", None),

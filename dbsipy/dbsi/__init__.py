@@ -37,6 +37,6 @@ Spectrum partitioned by diffusivity thresholds (configurable in INI):
 
 See Also
 --------
-src.dbsi_ia : IA engine with intra/extra-axonal separation
-src.core.fast_DBSI : Main DBSI orchestrator
+dbsipy.dbsi_ia : IA engine with intra/extra-axonal separation
+dbsipy.core.fast_DBSI : Main DBSI orchestrator
 """

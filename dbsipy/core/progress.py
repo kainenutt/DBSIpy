@@ -10,6 +10,22 @@ from tqdm import tqdm
 DEFAULT_BAR_FORMAT = "|{bar:100}|{percentage:3.0f}% ({n_fmt}/{total_fmt}) [{desc}: {elapsed} < {remaining}]"
 
 
+_OVERRIDE_PROGRESS_ENABLED: Optional[bool] = None
+
+
+def set_progress_enabled(enabled: Optional[bool]) -> None:
+    """Globally override whether progress bars are enabled.
+
+    When set to True/False, this takes precedence over env vars/TTY checks.
+    When set to None, falls back to env vars/TTY.
+
+    This is used by DBSIpy output modes (quiet disables progress bars).
+    """
+
+    global _OVERRIDE_PROGRESS_ENABLED
+    _OVERRIDE_PROGRESS_ENABLED = enabled
+
+
 def is_progress_enabled(explicit: Optional[bool] = None) -> bool:
     """Determine whether progress bars should be displayed.
 
@@ -20,6 +36,9 @@ def is_progress_enabled(explicit: Optional[bool] = None) -> bool:
     """
     if explicit is not None:
         return bool(explicit)
+
+    if _OVERRIDE_PROGRESS_ENABLED is not None:
+        return bool(_OVERRIDE_PROGRESS_ENABLED)
 
     env = os.environ.get("DBSIPY_PROGRESS", "").strip().lower()
     if env in {"1", "true", "yes", "on"}:

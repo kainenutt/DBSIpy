@@ -118,6 +118,16 @@ To run a benchmark that executes all supported engines on the same dataset and w
        --bvec_file PATH/TO/bvecs \
        --mask_file auto
 
+The benchmark summary JSON includes per-run engine status, wall time, per-process CPU/RAM/I/O deltas, CUDA peak memory
+(when applicable), and a snapshot of the effective configuration used for each run.
+
+On shared servers, resource reporting is scoped to the current DBSIpy process (not whole-node utilization). You can
+disable peak RSS sampling with:
+
+.. code-block:: bash
+
+           DBSIpy benchmark --no_resource_monitor ...
+
 Running from a git checkout (no install)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

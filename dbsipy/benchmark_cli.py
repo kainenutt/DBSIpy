@@ -54,6 +54,29 @@ class BenchmarkCLI:
             help="Number of repeats per engine (default: 1)",
         )
 
+        subparser.add_argument(
+            "--output_mode",
+            type=str,
+            required=False,
+            default=None,
+            choices=["quiet", "standard", "verbose", "debug"],
+            help="Terminal output mode (overrides config): quiet | standard | verbose | debug",
+        )
+
+        subparser.add_argument(
+            "--resource_sample_interval_s",
+            type=float,
+            required=False,
+            default=0.2,
+            help="Sampling interval (seconds) for per-process peak RSS monitoring (default: 0.2)",
+        )
+
+        subparser.add_argument(
+            "--no_resource_monitor",
+            action="store_true",
+            help="Disable per-process peak RSS sampling (still records start/end deltas when available)",
+        )
+
         return self.subparsers
 
     def validate_args(self, args):
@@ -97,6 +120,21 @@ class BenchmarkCLI:
             raise ValueError("--repeats must be >= 1")
         args["repeats"] = repeats
 
+        # Output mode is applied to the effective config used per run.
+        mode = args.get("output_mode", None)
+        if mode is not None:
+            mode = str(mode).strip().lower()
+            if mode == "":
+                mode = None
+        args["output_mode"] = mode
+
+        interval = float(args.get("resource_sample_interval_s", 0.2) or 0.2)
+        if interval <= 0:
+            raise ValueError("--resource_sample_interval_s must be > 0")
+        args["resource_sample_interval_s"] = interval
+
+        args["resource_monitor"] = not bool(args.get("no_resource_monitor", False))
+
         return args
 
     def run(self, args):
@@ -109,6 +147,9 @@ class BenchmarkCLI:
             output_root=args.get("output_root", None),
             repeats=int(args.get("repeats", 1)),
             run_tag="benchmark",
+            resource_sample_interval_s=float(args.get("resource_sample_interval_s", 0.2) or 0.2),
+            resource_monitor=bool(args.get("resource_monitor", True)),
+            output_mode=args.get("output_mode", None),
         )
 
         # If any run failed, exit nonzero.

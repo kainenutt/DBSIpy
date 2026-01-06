@@ -90,6 +90,15 @@ class CLI:
                             dest='cfg_path',
                             required=False,
                             help="The path to the configuration File")
+
+        subparser.add_argument(
+            "--output_mode",
+            type=str,
+            required=False,
+            default=None,
+            choices=["quiet", "standard", "verbose", "debug"],
+            help="Terminal output mode (overrides config/UI): quiet | standard | verbose | debug",
+        )
      
         return self.subparsers
 
