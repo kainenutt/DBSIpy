@@ -29,3 +29,8 @@ All notable changes to this project will be documented in this file.
 - Output modes: standardize console behavior on ``[DEBUG] output_mode = quiet|standard|verbose|debug`` and add ``--output_mode`` overrides to CLI/benchmark.
 - Configs/UI: fully retire writing ``[DEBUG] verbose`` (templates, GUI flow, and saved ``config_final.ini`` snapshots no longer emit it; deprecated parsing fallback remains for older configs).
 - Provenance: record ``output_mode`` explicitly in ``run_manifest.json``.
+
+1.1.1 (2026-01-06)
+------------------
+
+- Outputs: downgrade non-finite map sanitization messages from WARNING to DEBUG (still errors when ``DBSIPY_STRICT=1``).

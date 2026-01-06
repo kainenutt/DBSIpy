@@ -166,7 +166,9 @@ class parameter_map:
                 )
                 if os.environ.get('DBSIPY_STRICT', '0') == '1':
                     raise RuntimeError(msg)
-                logging.warning(msg + "; sanitizing to 0.0")
+                # Sanitization is expected to occasionally occur for unstable fits.
+                # Keep the information available for debugging without spamming users.
+                logging.debug(msg + "; sanitizing to 0.0")
 
             data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
 
