@@ -122,6 +122,12 @@ class DBSIpy:
         self._run_finished_utc: str | None = None
         self._rng: dict[str, object] = {}
         self.configure_logging()
+        # Allow lower-level components (NNLS/Step2/save) to accumulate per-run timings
+        # into this pipeline record without importing this module.
+        try:
+            setattr(self.configuration, '_timings_sink', self._timings)
+        except Exception:
+            pass
         return
 
     def _configure_reproducibility(self) -> None:
@@ -721,6 +727,10 @@ class DBSIpy:
                 header=self.header,
                 affine=self.affine,
             )
+            try:
+                setattr(self.params[map_name], '_timings_sink', self._timings)
+            except Exception:
+                pass
 
         # Initialize parameter maps based on configuration.
         # Semantics:
@@ -815,6 +825,10 @@ class DBSIpy:
                                                                      header = self.header,
                                                                      affine = self.affine
                                                                      ) 
+                try:
+                    setattr(self.params[map_name], '_timings_sink', self._timings)
+                except Exception:
+                    pass
        
     def calc(self) -> None:
 

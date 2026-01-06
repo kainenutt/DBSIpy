@@ -18,6 +18,7 @@ from dbsipy.nn.tensor_parametizations import isotropicDiffusionModel as IDM
 
 from joblib import Parallel, delayed
 from scipy import optimize
+import time
 
 MIN_POSITIVE_SIGNAL = 1.0e-6
 
@@ -153,9 +154,39 @@ class DBSIModel:
         device = DBSI_CONFIG.DEVICE 
         self.DEVICE = DBSI_CONFIG.DEVICE 
 
-        self.dwi = dwi.to(    device)
-        self.bvals = bvals.to(device)
-        self.bvecs = bvecs.to(device)
+        sink = None
+        try:
+            sink = getattr(DBSI_CONFIG, '_timings_sink', None)
+        except Exception:
+            sink = None
+
+        def _accum(key: str, dt: float) -> None:
+            try:
+                if isinstance(sink, dict):
+                    sink[key] = float(sink.get(key, 0.0) or 0.0) + float(dt)
+            except Exception:
+                pass
+
+        def _timed_to(t: torch.Tensor, dev: str) -> torch.Tensor:
+            do_sync = (str(dev) == 'cuda') and torch.cuda.is_available()
+            if do_sync:
+                try:
+                    torch.cuda.synchronize()
+                except Exception:
+                    pass
+            t0 = time.perf_counter()
+            out = t.to(dev)
+            if do_sync:
+                try:
+                    torch.cuda.synchronize()
+                except Exception:
+                    pass
+            _accum('h2d_step2_s', float(time.perf_counter() - t0))
+            return out
+
+        self.dwi = _timed_to(dwi, device)
+        self.bvals = _timed_to(bvals, device)
+        self.bvecs = _timed_to(bvecs, device)
         
         self.STEP_2_OPTIMIZER_ARGS = DBSI_CONFIG.STEP_2_OPTIMIZER_ARGS
         self.step_2_axials = DBSI_CONFIG.step_2_axials
@@ -186,7 +217,7 @@ class DBSIModel:
         self.learnable_s0 = bool(getattr(DBSI_CONFIG, 'learnable_s0', False))
         if self.learnable_s0:
             if s0_init is not None:
-                s0_init = s0_init.to(device)
+                s0_init = _timed_to(s0_init, device)
                 s0_init = torch.clamp(s0_init, min=1.0)
                 log_s0_init = torch.log(s0_init)
             else:

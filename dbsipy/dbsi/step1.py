@@ -60,7 +60,7 @@ class DiffusionBasisFunctionModel:
         x = leastsquares.nnlsq(
             A=A,
             b=dwi,
-            optimizer_args=self.configuration.STEP_1_OPTIMIZER_ARGS,
+            optimizer_args=dict(self.configuration.STEP_1_OPTIMIZER_ARGS, DBSI_CONFIG=self.configuration),
             device=self.configuration.DEVICE,
         )
         return DiffusionBasisFunctionModelFit(self.configuration, A, x, bvals, bvecs)

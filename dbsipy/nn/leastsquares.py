@@ -20,6 +20,35 @@ from tqdm import tqdm
 
 from dbsipy.core.progress import make_progress_bar
 
+
+def _accum_timing(sink: object, key: str, dt_s: float) -> None:
+    try:
+        if not isinstance(sink, dict):
+            return
+        sink[key] = float(sink.get(key, 0.0) or 0.0) + float(dt_s)
+    except Exception:
+        pass
+
+
+def _timed_to(t: torch.Tensor, device: str) -> tuple[torch.Tensor, float]:
+    """Time a tensor .to(device) with CUDA sync when applicable."""
+    import time
+
+    do_sync = (str(device) == 'cuda') and torch.cuda.is_available()
+    if do_sync:
+        try:
+            torch.cuda.synchronize()
+        except Exception:
+            pass
+    t0 = time.perf_counter()
+    out = t.to(device)
+    if do_sync:
+        try:
+            torch.cuda.synchronize()
+        except Exception:
+            pass
+    return out, float(time.perf_counter() - t0)
+
 ENGINES = {
     'DBSI': BE.DBSIModel,
     'IA'  : BE.DBSIModel
@@ -139,9 +168,28 @@ def _nnlsq_single_batch(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, 
     if device == 'cuda' and torch.cuda.is_available():
         torch.cuda.empty_cache()
     
+    # Optional timing sink (wired in by the pipeline via configuration).
+    sink = None
     try:
-        nnlsq_model = BE.least_squares_optimizer(A.to(device), non_linearity = nn.ReLU(), output_dimension = b.shape[0], device = device)
-        b = b.to(device)
+        sink = getattr(optimizer_args, '_timings_sink', None)
+    except Exception:
+        sink = None
+    try:
+        # Prefer timing sink from config when present.
+        try:
+            cfg = optimizer_args.get('DBSI_CONFIG', None)
+            if cfg is not None:
+                sink = getattr(cfg, '_timings_sink', sink)
+        except Exception:
+            pass
+
+        A_dev, dtA = _timed_to(A, device)
+        _accum_timing(sink, 'h2d_step1_s', dtA)
+        b_dev, dtb = _timed_to(b, device)
+        _accum_timing(sink, 'h2d_step1_s', dtb)
+
+        nnlsq_model = BE.least_squares_optimizer(A_dev, non_linearity=nn.ReLU(), output_dimension=b.shape[0], device=device)
+        b = b_dev
     except RuntimeError as e:
         if 'out of memory' in str(e).lower():
             logging.error(f"CUDA OOM in Step 1. Try reducing data size or using CPU.")
@@ -150,8 +198,9 @@ def _nnlsq_single_batch(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, 
             logging.warning("Falling back to CPU for Step 1 fitting...")
             device = 'cpu'
             torch.cuda.empty_cache()
-            nnlsq_model = BE.least_squares_optimizer(A.to(device), non_linearity = nn.ReLU(), output_dimension = b.shape[0], device = device)
+            A_dev, _ = _timed_to(A, device)
             b = b.to(device)
+            nnlsq_model = BE.least_squares_optimizer(A_dev, non_linearity=nn.ReLU(), output_dimension=b.shape[0], device=device)
         else:
             raise
 
@@ -261,7 +310,14 @@ def _nnlsq_single_batch(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, 
             raise
     
     pbar.close()
-    return nnlsq_model.cpu().get_parameters().detach()
+
+    # D2H: parameters moved back to CPU for downstream grouping.
+    import time
+
+    t0 = time.perf_counter()
+    params_cpu = nnlsq_model.cpu().get_parameters().detach()
+    _accum_timing(sink, 'd2h_step1_s', float(time.perf_counter() - t0))
+    return params_cpu
 
 
 def _nnlsq_batched(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, device: str, batch_size: int) -> torch.Tensor:
@@ -277,8 +333,17 @@ def _nnlsq_batched(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, devic
     # Initialize output array
     x_all = torch.zeros((n_voxels, n_basis), dtype=torch.float32)
     
+    # Optional timing sink (wired in by the pipeline via configuration).
+    sink = None
+    try:
+        cfg = optimizer_args.get('DBSI_CONFIG', None)
+        sink = getattr(cfg, '_timings_sink', None) if cfg is not None else None
+    except Exception:
+        sink = None
+
     # Move basis matrix to device once
-    A_device = A.to(device)
+    A_device, dtA = _timed_to(A, device)
+    _accum_timing(sink, 'h2d_step1_s', dtA)
 
     # Reuse loss instance across batches
     L = torch.nn.MSELoss()
@@ -309,9 +374,14 @@ def _nnlsq_batched(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, devic
         
         # Fit this batch (using single batch implementation without batching)
         try:
-            nnlsq_model = BE.least_squares_optimizer(A_device, non_linearity=nn.ReLU(), 
-                                                    output_dimension=b_batch.shape[0], device=device)
-            b_batch_device = b_batch.to(device)
+            nnlsq_model = BE.least_squares_optimizer(
+                A_device,
+                non_linearity=nn.ReLU(),
+                output_dimension=b_batch.shape[0],
+                device=device,
+            )
+            b_batch_device, dtb = _timed_to(b_batch, device)
+            _accum_timing(sink, 'h2d_step1_s', dtb)
             
             optimizer = optimizer_args['optimizer'](params=nnlsq_model.parameters(), lr=optimizer_args['lr'])
             scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=optimizer_args['lr'] * 10, 
@@ -327,7 +397,11 @@ def _nnlsq_batched(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, devic
                 scheduler.step()
             
             # Store results
+            import time
+
+            t0 = time.perf_counter()
             x_all[start_idx:end_idx] = nnlsq_model.cpu().get_parameters().detach()
+            _accum_timing(sink, 'd2h_step1_s', float(time.perf_counter() - t0))
             
         except RuntimeError as e:
             if 'out of memory' in str(e).lower() and device == 'cuda':
@@ -370,15 +444,55 @@ Step 2 Multi-Fiber Modeling
 
 def compute(args, **kwargs):
 
-    Model = ENGINES[args['engine']](dwi            = args['data'], 
+    # Optional timing sink (wired in by the pipeline via configuration).
+    sink = None
+    try:
+        cfg = getattr(args.get('DBSIModel', None), 'configuration', None)
+        sink = getattr(cfg, '_timings_sink', None) if cfg is not None else None
+    except Exception:
+        sink = None
+
+    # Best-effort H2D timing for Step 2 per-batch tensors.
+    # This captures the dominant host->GPU transfer cost when running on CUDA.
+    device = 'cpu'
+    try:
+        cfg = getattr(args.get('DBSIModel', None), 'configuration', None)
+        device = str(getattr(cfg, 'DEVICE', device)) if cfg is not None else device
+    except Exception:
+        device = 'cpu'
+
+    try:
+        data, dt = _timed_to(args['data'], device)
+        _accum_timing(sink, 'h2d_step2_s', dt)
+        directions, dt = _timed_to(args['directions'], device)
+        _accum_timing(sink, 'h2d_step2_s', dt)
+        fractions, dt = _timed_to(args['fractions'], device)
+        _accum_timing(sink, 'h2d_step2_s', dt)
+        restricted, dt = _timed_to(args['restricted'], device)
+        _accum_timing(sink, 'h2d_step2_s', dt)
+        non_restricted, dt = _timed_to(args['non_restricted'], device)
+        _accum_timing(sink, 'h2d_step2_s', dt)
+        s0_init = args.get('s0_init', None)
+        if isinstance(s0_init, torch.Tensor):
+            s0_init, dt = _timed_to(s0_init, device)
+            _accum_timing(sink, 'h2d_step2_s', dt)
+    except Exception:
+        data = args['data']
+        directions = args['directions']
+        fractions = args['fractions']
+        restricted = args['restricted']
+        non_restricted = args['non_restricted']
+        s0_init = args.get('s0_init', None)
+
+    Model = ENGINES[args['engine']](dwi            = data, 
                                     bvals          = args['DBSIModel'].bvals,
                                     bvecs          = args['DBSIModel'].bvecs,
-                                    directions     = args['directions'],
-                                    fractions      = args['fractions'],
-                                    restricted     = args['restricted'],
-                                    non_restricted = args['non_restricted'],
+                                    directions     = directions,
+                                    fractions      = fractions,
+                                    restricted     = restricted,
+                                    non_restricted = non_restricted,
                                     indicies       = args['indicies'],
-                                    s0_init        = args.get('s0_init', None),
+                                    s0_init        = s0_init,
                                     DBSI_CONFIG    = args['DBSIModel'].configuration,
                                     logging_args   = (args['process_id'], args['n_jobs'], args['pbar']),
                         )

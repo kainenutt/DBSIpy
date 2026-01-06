@@ -34,3 +34,9 @@ All notable changes to this project will be documented in this file.
 ------------------
 
 - Outputs: downgrade non-finite map sanitization messages from WARNING to DEBUG (still errors when ``DBSIPY_STRICT=1``).
+
+1.2.0 (2026-01-06)
+------------------
+
+- Benchmark: add NVML snapshots (total GPU memory/utilization + process list when supported).
+- Benchmark: add coarse H2D/D2H transfer timing accumulation (Step 1/Step 2 uploads + map-save downloads).

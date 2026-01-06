@@ -28,3 +28,11 @@ def test_installed_package_versions_smoke() -> None:
     assert isinstance(versions, dict)
     # Curated key should always be present in output (value may be unavailable).
     assert "DBSIpy" in versions
+
+
+def test_nvml_snapshot_helper_smoke() -> None:
+    # Optional dependency: should return None when pynvml is not installed.
+    from dbsipy.core import benchmark as bm
+
+    snap = bm._get_nvml_snapshot(cuda_device_index=0)  # type: ignore[attr-defined]
+    assert (snap is None) or isinstance(snap, dict)

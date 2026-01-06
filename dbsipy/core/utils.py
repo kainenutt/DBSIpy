@@ -147,7 +147,39 @@ class parameter_map:
         return temp_map
     
     def _prepare_for_save(self):
-        return self._to_spatial().to('cpu').detach().numpy()
+        # GPU -> host transfer happens here when the backing tensor lives on CUDA.
+        # Keep an aggregate timing in the pipeline timing sink (if present).
+        import time
+
+        t = self._to_spatial()
+
+        sink = None
+        try:
+            sink = getattr(self, '_timings_sink', None)
+        except Exception:
+            sink = None
+
+        # Only count D2H when data is actually on CUDA.
+        if isinstance(t, torch.Tensor) and bool(getattr(t, 'is_cuda', False)) and torch.cuda.is_available():
+            try:
+                torch.cuda.synchronize()
+            except Exception:
+                pass
+            t0 = time.perf_counter()
+            t_cpu = t.to('cpu')
+            try:
+                torch.cuda.synchronize()
+            except Exception:
+                pass
+            dt = float(time.perf_counter() - t0)
+            try:
+                if isinstance(sink, dict):
+                    sink['d2h_save_s'] = float(sink.get('d2h_save_s', 0.0) or 0.0) + dt
+            except Exception:
+                pass
+            return t_cpu.detach().numpy()
+
+        return t.to('cpu').detach().numpy()
     
     def _save(self, path):
         os.makedirs(path, exist_ok=True)

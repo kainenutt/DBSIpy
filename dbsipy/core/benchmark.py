@@ -222,6 +222,129 @@ def _get_cuda_device_info(torch) -> dict[str, Any] | None:
     return info
 
 
+def _get_nvml_snapshot(*, cuda_device_index: int | None = None, pid: int | None = None) -> dict[str, Any] | None:
+    """NVML snapshot.
+
+    This is optional (requires `pynvml`). When process-specific queries are not
+    supported by the driver, we still report total device memory used.
+    """
+
+    try:
+        import pynvml  # type: ignore
+    except Exception:
+        return None
+
+    idx = int(cuda_device_index) if cuda_device_index is not None else 0
+    out: dict[str, Any] = {
+        "ok": False,
+        "error": None,
+        "device_index": idx,
+        "driver_version": None,
+        "nvml_version": None,
+        "name": None,
+        "uuid": None,
+        "memory_total_bytes": None,
+        "memory_used_bytes": None,
+        "memory_free_bytes": None,
+        "utilization_gpu_percent": None,
+        "utilization_mem_percent": None,
+        "processes": None,
+        "process_query_supported": None,
+        "process_pid": int(pid) if pid is not None else None,
+        "process_memory_bytes": None,
+    }
+
+    try:
+        pynvml.nvmlInit()
+        try:
+            out["driver_version"] = str(pynvml.nvmlSystemGetDriverVersion())
+        except Exception:
+            out["driver_version"] = None
+        try:
+            out["nvml_version"] = str(pynvml.nvmlSystemGetNVMLVersion())
+        except Exception:
+            out["nvml_version"] = None
+
+        handle = pynvml.nvmlDeviceGetHandleByIndex(idx)
+
+        try:
+            out["name"] = str(pynvml.nvmlDeviceGetName(handle))
+        except Exception:
+            out["name"] = None
+        try:
+            out["uuid"] = str(pynvml.nvmlDeviceGetUUID(handle))
+        except Exception:
+            out["uuid"] = None
+
+        try:
+            mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            out["memory_total_bytes"] = int(getattr(mem, "total", 0) or 0)
+            out["memory_used_bytes"] = int(getattr(mem, "used", 0) or 0)
+            out["memory_free_bytes"] = int(getattr(mem, "free", 0) or 0)
+        except Exception:
+            pass
+
+        try:
+            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            out["utilization_gpu_percent"] = int(getattr(util, "gpu", 0) or 0)
+            out["utilization_mem_percent"] = int(getattr(util, "memory", 0) or 0)
+        except Exception:
+            pass
+
+        # Process accounting: (may be unsupported or permission-restricted).
+        procs = None
+        try:
+            # Prefer v2 when available.
+            fn = getattr(pynvml, "nvmlDeviceGetComputeRunningProcesses_v2", None)
+            if fn is None:
+                fn = getattr(pynvml, "nvmlDeviceGetComputeRunningProcesses", None)
+            if fn is not None:
+                procs = fn(handle)
+        except Exception:
+            procs = None
+
+        if procs is not None:
+            proc_list: list[dict[str, Any]] = []
+            for p in procs:
+                try:
+                    proc_list.append(
+                        {
+                            "pid": int(getattr(p, "pid", 0) or 0),
+                            "used_gpu_memory_bytes": (
+                                None
+                                if getattr(p, "usedGpuMemory", None) is None
+                                else int(getattr(p, "usedGpuMemory", 0) or 0)
+                            ),
+                        }
+                    )
+                except Exception:
+                    continue
+            out["processes"] = proc_list
+            out["process_query_supported"] = True
+
+            if pid is not None:
+                try:
+                    for rec in proc_list:
+                        if int(rec.get("pid", -1)) == int(pid):
+                            out["process_memory_bytes"] = rec.get("used_gpu_memory_bytes")
+                            break
+                except Exception:
+                    pass
+        else:
+            out["process_query_supported"] = False
+
+        out["ok"] = True
+        return out
+    except Exception as e:
+        out["error"] = f"{type(e).__name__}: {e}"
+        return out
+    finally:
+        try:
+            pynvml.nvmlShutdown()
+        except Exception:
+            pass
+
+
 def _get_installed_package_versions() -> dict[str, str]:
     """Versions for key packages (without importing them).
 
@@ -411,10 +534,24 @@ def run_benchmark(
                     "device": _get_cuda_device_info(torch),
                     "max_memory_allocated": None,
                     "max_memory_reserved": None,
+                    "nvml": {
+                        "start": None,
+                        "end": None,
+                    },
                 },
             }
 
             try:
+                # Record a baseline NVML snapshot at run start.
+                try:
+                    if torch and torch.cuda.is_available():
+                        run_rec["cuda"]["nvml"]["start"] = _get_nvml_snapshot(
+                            cuda_device_index=int(torch.cuda.current_device()),
+                            pid=os.getpid(),
+                        )
+                except Exception:
+                    pass
+
                 if torch and torch.cuda.is_available():
                     try:
                         torch.cuda.reset_peak_memory_stats()
@@ -455,6 +592,15 @@ def run_benchmark(
                 snap1 = get_process_resource_snapshot()
                 run_rec["resources"]["delta"] = diff_process_resource_snapshots(snap0, snap1)
                 run_rec["run_finished_utc"] = _utc_now()
+                # Record a baseline NVML snapshot at run end.
+                try:
+                    if torch and torch.cuda.is_available():
+                        run_rec["cuda"]["nvml"]["end"] = _get_nvml_snapshot(
+                            cuda_device_index=int(torch.cuda.current_device()),
+                            pid=os.getpid(),
+                        )
+                except Exception:
+                    pass
                 if torch and torch.cuda.is_available():
                     try:
                         torch.cuda.empty_cache()
