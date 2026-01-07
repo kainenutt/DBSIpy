@@ -1,7 +1,7 @@
 DBSIpy Documentation
 ====================
 
-DBSIpy is a Python package implementing Diffusion Basis Spectrum Imaging (DBSI) with DTI and NODDI engines.
+DBSIpy is a Python package implementing whole-image Adam-optimization to estimate diffusion parameters from diffusion MR signal representations. The package gets its name from the original Diffusion Basis Spectrum Imaging (DBSI), though the method has additionally been applied to the DTI and NODDI signal representations.
 
 .. note::
 
