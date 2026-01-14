@@ -157,12 +157,14 @@ class configuration:
 
         if input_cfg_file.has_option('INPUT', 'mask_file'):
             mask_path = str(input_cfg_file['INPUT']['mask_file']).strip()
-            if mask_path and mask_path.lower() not in {'auto', 'n/a'}:
+            none_like = {'n/a', 'n\\a', 'na', 'none'}
+            if mask_path and mask_path.lower() not in ({'auto'} | none_like):
                 if not os.path.exists(mask_path):
                     raise ConfigurationError(
                         f"Mask file not found: {mask_path}\n"
                         f"Specified in configuration as 'mask_file'.\n"
-                        f"Use 'mask_file = auto' to auto-generate a mask, or provide a valid path."
+                        f"Use 'mask_file = auto' to auto-generate a mask, leave it blank for a minimal signal mask, "
+                        f"or provide a valid path."
                     )
 
         if not input_cfg_file.has_option('GLOBAL', 'model_engine'):
@@ -439,8 +441,15 @@ class configuration:
         # Input Parameters
         self.dwi_path = input_cfg_file['INPUT']['dwi_file']
         self.mask_path = input_cfg_file['INPUT'].get('mask_file', 'auto')
-        if isinstance(self.mask_path, str) and self.mask_path.strip().lower() in {'n/a', ''}:
-            self.mask_path = 'auto'
+        # Mask semantics:
+        # - missing key: default to 'auto' (legacy behavior)
+        # - explicit 'auto': use median_otsu auto mask
+        # - explicit empty value: use a minimal signal-based mask (drop only all-floor voxels)
+        # - explicit none-like values: same as empty (n/a, na, none, n\a)
+        if isinstance(self.mask_path, str):
+            m = self.mask_path.strip().lower()
+            if m in {'n/a', 'n\\a', 'na', 'none'}:
+                self.mask_path = ''
         self.bval_path = input_cfg_file['INPUT']['bval_file']
         self.bvec_path = input_cfg_file['INPUT']['bvec_file']
 

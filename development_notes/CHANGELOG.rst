@@ -40,3 +40,10 @@ All notable changes to this project will be documented in this file.
 
 - Benchmark: add NVML snapshots (total GPU memory/utilization + process list when supported).
 - Benchmark: add coarse H2D/D2H transfer timing accumulation (Step 1/Step 2 uploads + map-save downloads).
+
+1.2.1 (2026-01-13)
+------------------
+
+- Masking: treat an explicitly empty ``mask_file`` value as a minimal signal mask (removes only voxels with no signal).
+- Masking: treat ``mask_file = n/a|na|none|n\a`` (case-insensitive) the same as empty (minimal signal mask).
+- DBSI/IA Step 1: allow passing ``DBSI_CONFIG`` through to ``nnlsq`` (fixes ``TypeError: invalid optimizer argument``).

@@ -102,7 +102,7 @@ class BenchmarkCLI:
             mask = str(mask).strip()
             if mask == "":
                 mask = None
-            elif mask.lower() not in {"auto", "n/a"} and not os.path.exists(mask):
+            elif mask.lower() not in {"auto", "n/a", "n\\a", "na", "none"} and not os.path.exists(mask):
                 raise FileNotFoundError(f"Mask file not found: {mask}")
         args["mask_file"] = mask
 
