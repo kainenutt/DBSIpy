@@ -128,13 +128,20 @@ def nnlsq(A: torch.Tensor, b: torch.Tensor, optimizer_args: Dict, device = 'cpu'
                       'patience'  : 75,    # Early stopping patience (epochs)
                       'min_delta' : 0.0    # Minimum improvement to reset patience
                       }
+
+    # Allow non-optimizer metadata keys to be threaded through.
+    # `DBSI_CONFIG` is used for timing/diagnostics sinks.
+    allowed_meta_keys = {'DBSI_CONFIG', '_timings_sink'}
     
     for k in optimizer_args.keys():
-        if k not in default_optimizer_args.keys():
-            raise TypeError ( f"invalid optimizer argument")
+        if k not in default_optimizer_args.keys() and k not in allowed_meta_keys:
+            raise TypeError(
+                "invalid optimizer argument: %s (allowed: %s)"
+                % (k, ", ".join(sorted(set(default_optimizer_args.keys()) | set(allowed_meta_keys))))
+            )
 
     for key in set(default_optimizer_args.keys()) - set(optimizer_args.keys()):
-            optimizer_args[key] = default_optimizer_args[key]
+        optimizer_args[key] = default_optimizer_args[key]
     
     # Determine batch size based on available memory
     n_voxels = b.shape[0]

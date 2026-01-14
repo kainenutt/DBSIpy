@@ -142,7 +142,13 @@ def mask_dwi(
         raise ValueError("Could not determine DWI volume dimension (no axis matches bvals length).")
     vol_idx = int(np.array(vol_candidates).item())
 
-    non_trivial_signal_mask = np.logical_and(~(dwi == 0).all(axis=vol_idx), np.ones(spatial_dims, dtype=bool))
+    # DWI loading clips values below MIN_POSITIVE_SIGNAL up to MIN_POSITIVE_SIGNAL.
+    # Treat voxels that are at/below that floor across *all* volumes as having no signal.
+    # This yields a minimal, non-trivial mask that only removes empty-background voxels.
+    non_trivial_signal_mask = np.logical_and(
+        ~(dwi <= float(MIN_POSITIVE_SIGNAL)).all(axis=vol_idx),
+        np.ones(spatial_dims, dtype=bool),
+    )
 
     # Determine mask.
     if mask_path != 'auto':
