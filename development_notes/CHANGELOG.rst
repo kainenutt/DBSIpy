@@ -47,3 +47,8 @@ All notable changes to this project will be documented in this file.
 - Masking: treat an explicitly empty ``mask_file`` value as a minimal signal mask (removes only voxels with no signal).
 - Masking: treat ``mask_file = n/a|na|none|n\a`` (case-insensitive) the same as empty (minimal signal mask).
 - DBSI/IA Step 1: allow passing ``DBSI_CONFIG`` through to ``nnlsq`` (fixes ``TypeError: invalid optimizer argument``).
+
+1.2.2 (2026-01-14)
+------------------
+
+- Output modes: in non-quiet modes, progress bars now respect TTY/env defaults again (prevents per-update newline spam in batch/redirected logs).

@@ -455,8 +455,11 @@ class DBSIpy:
         )
 
         # Output mode -> progress bar policy.
-        # Quiet: no progress bars. All other modes: allow progress rendering.
-        set_progress_enabled(False if mode == 'quiet' else True)
+        # Quiet: no progress bars.
+        # Other modes: do not force-enable; let tqdm decide based on TTY/env.
+        # This prevents per-update newline spam when running in non-interactive
+        # contexts where carriage returns are not respected (e.g., redirected logs).
+        set_progress_enabled(False if mode == 'quiet' else None)
 
         # Always show version/release info in terminal and logs.
         logging.getLogger().log(STATUS, f"DBSIpy {__version__} (mode={mode})")
