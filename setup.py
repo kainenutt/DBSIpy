@@ -19,7 +19,7 @@ setuptools.setup(
     version='1.2.2',
     description='A Python package for Diffusion Basis Spectrum Imaging (DBSI) with DTI and NODDI engines',
     url='https://github.com/kainenutt/DBSIpy',
-    author='Kainen L. Utt, Jacob Blum, Y. Wang, Peng Sun, Sheng-Kwei Song'
+    author='Kainen L. Utt, Jacob Blum, Y. Wang, Peng Sun, Sheng-Kwei Song',
     author_email='k.l.utt@wustl.edu',
     license='BSD (3-Clause)',
     packages=setuptools.find_packages(exclude=("tests*",)),
