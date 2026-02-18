@@ -473,6 +473,14 @@ class configuration:
 
         self._output_mode = self._normalize_output_mode(raw_output_mode)
 
+        # Hidden INI-only feature flag (not documented): optionally emit the full
+        # isotropic spectrum as a 4D map for DBSI/IA.
+        # This is intentionally not exposed via CLI.
+        try:
+            self.emit_isotropic_spectrum = input_cfg_file.getboolean('DEBUG', 'emit_isotropic_spectrum', fallback=False)
+        except Exception:
+            self.emit_isotropic_spectrum = False
+
         # Keep legacy attribute for older call sites (derived from output_mode).
         self.verbose_flag = bool(self._output_mode in {'verbose', 'debug'})
 

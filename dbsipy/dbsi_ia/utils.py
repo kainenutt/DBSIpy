@@ -71,6 +71,14 @@ def fit_results_to_parameter_maps_dbsi_ia(fit_results: List[Dict[str, torch.Floa
                 s0 = s0.to(current_device)
             _maybe_set_param(DBSI_cls, 's0_map', inds_torch, s0[:, None])
 
+        # Hidden output: full isotropic spectrum coefficients (optional)
+        if 'isotropic_spectrum' in fit_result and DBSI_cls.params.get('isotropic_spectrum') is not None:
+            iso_spec = fit_result.get('isotropic_spectrum')
+            if isinstance(iso_spec, torch.Tensor):
+                iso_spec = iso_spec.to(current_device)
+            if iso_spec is not None:
+                _maybe_set_param(DBSI_cls, 'isotropic_spectrum', inds_torch, iso_spec)
+
         tenmodel = diffusion_tensor_model(DBSI_cls.bvals, DBSI_cls.bvecs, device=str(current_device))
 
         n_vox = len(inds)

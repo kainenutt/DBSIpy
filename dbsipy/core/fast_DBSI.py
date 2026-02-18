@@ -762,6 +762,12 @@ class DBSIpy:
             if 's0_map' not in self.params:
                 _alloc_map('s0_map', 'scalar')
 
+        # Hidden feature: optionally emit full isotropic spectrum coefficients.
+        # This is a 4D map with last dimension = len(iso_basis).
+        if self.configuration.ENGINE in {'DBSI', 'IA'} and bool(getattr(self.configuration, 'emit_isotropic_spectrum', False)):
+            if 'isotropic_spectrum' not in self.params:
+                _alloc_map('isotropic_spectrum', 'spectrum')
+
         # Multi-fiber support (DBSI/IA): allocate additional fiber_{i}d_* maps.
         # Internal convention:
         #   - fiber_0d_* for the first fiber
