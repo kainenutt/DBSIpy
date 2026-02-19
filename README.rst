@@ -2,9 +2,11 @@
  :alt: DBSIPy logo
 
 
-This library, ``DBSIPy``, implements Diffusion Basis Spectrum Imaging with a PyTorch backend to take advantage of modern machine learning optimization algorithms and hardware acceleration. If you utlize DBSIpy in your work, please cite the associated publications:
+This library, ``DBSIPy``, implements Diffusion Basis Spectrum Imaging with a PyTorch backend to take advantage of modern machine learning optimization algorithms and hardware acceleration. If you utilize DBSIpy in your work, please cite the associated publications:
 
 Utt, K.L., Blum, J.S., Rim, D. and Song, S.K., 2026. Accelerated Diffusion Basis Spectrum Imaging With Tensor Computations. Human Brain Mapping, 47(2), p.e70460. https://doi.org/10.1002/hbm.70460.
+
+No commercial usage of DBSIpy or its components is permitted. Personal and academic research only.
 
 Installation and Usage
 ----------------------
